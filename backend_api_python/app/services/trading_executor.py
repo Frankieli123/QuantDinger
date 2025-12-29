@@ -9,7 +9,7 @@ try:
     import resource  # Linux/Unix only
 except Exception:
     resource = None
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime
 import json
 from decimal import Decimal, ROUND_DOWN, ROUND_UP
@@ -486,10 +486,12 @@ class TradingExecutor:
             # 初始化策略状态
             trading_config = strategy['trading_config']
             indicator_config = strategy['indicator_config']
+            ai_model_config = strategy.get('ai_model_config') or {}
             execution_mode = (strategy.get('execution_mode') or 'signal').strip().lower()
             if execution_mode not in ['signal', 'live']:
                 execution_mode = 'signal'
             notification_config = strategy.get('notification_config') or {}
+            strategy_name = strategy.get('strategy_name') or f"strategy_{int(strategy_id)}"
             symbol = trading_config.get('symbol', '')
             timeframe = trading_config.get('timeframe', '1H')
             
@@ -943,6 +945,7 @@ class TradingExecutor:
 
                             ok = self._execute_signal(
                                 strategy_id=strategy_id,
+                                strategy_name=strategy_name,
                                 exchange=exchange,
                                 symbol=symbol,
                                 current_price=execute_price,
@@ -957,6 +960,7 @@ class TradingExecutor:
                                 execution_mode=execution_mode,
                                 notification_config=notification_config,
                                 trading_config=trading_config,
+                                ai_model_config=ai_model_config,
                             )
                             if ok:
                                 logger.info(f"Strategy {strategy_id} signal executed: {signal_type} @ {execute_price}")
@@ -1005,7 +1009,7 @@ class TradingExecutor:
                         id, strategy_name, strategy_type, status,
                         initial_capital, leverage, decide_interval,
                         execution_mode, notification_config,
-                        indicator_config, exchange_config, trading_config
+                        indicator_config, exchange_config, trading_config, ai_model_config
                     FROM qd_strategies_trading
                     WHERE id = %s
                 """
@@ -1015,7 +1019,7 @@ class TradingExecutor:
             
             if strategy:
                 # 解析JSON字段
-                for field in ['indicator_config', 'trading_config', 'notification_config']:
+                for field in ['indicator_config', 'trading_config', 'notification_config', 'ai_model_config']:
                     if isinstance(strategy.get(field), str):
                         try:
                             strategy[field] = json.loads(strategy[field])
@@ -1839,6 +1843,7 @@ class TradingExecutor:
     def _execute_signal(
         self,
         strategy_id: int,
+        strategy_name: str,
         exchange: Any,
         symbol: str,
         current_price: float,
@@ -1855,6 +1860,7 @@ class TradingExecutor:
         execution_mode: str = 'signal',
         notification_config: Optional[Dict[str, Any]] = None,
         trading_config: Optional[Dict[str, Any]] = None,
+        ai_model_config: Optional[Dict[str, Any]] = None,
         signal_ts: int = 0,
     ):
         """执行具体的交易信号"""
@@ -1868,11 +1874,49 @@ class TradingExecutor:
             if market_type == 'spot' and 'short' in signal_type:
                  return False
 
+            sig = (signal_type or "").strip().lower()
+
+            # 1.1 开仓 AI 过滤（仅 open_*）
+            if sig in ("open_long", "open_short") and self._is_entry_ai_filter_enabled(ai_model_config=ai_model_config, trading_config=trading_config):
+                ok_ai, ai_info = self._entry_ai_filter_allows(
+                    strategy_id=strategy_id,
+                    symbol=symbol,
+                    signal_type=sig,
+                    ai_model_config=ai_model_config,
+                    trading_config=trading_config,
+                )
+                if not ok_ai:
+                    # Best-effort persist a browser notification so UI can show "HOLD due to AI filter".
+                    reason = (ai_info or {}).get("reason") or "ai_filter_rejected"
+                    ai_decision = (ai_info or {}).get("ai_decision") or ""
+                    title = f"AI过滤拦截开仓 | {symbol}"
+                    msg = f"策略信号={sig}，AI决策={ai_decision or 'UNKNOWN'}，原因={reason}；已HOLD（不下单）"
+                    self._persist_browser_notification(
+                        strategy_id=strategy_id,
+                        symbol=symbol,
+                        signal_type="ai_filter_hold",
+                        title=title,
+                        message=msg,
+                        payload={
+                            "event": "qd.ai_filter",
+                            "strategy_id": int(strategy_id),
+                            "strategy_name": str(strategy_name or ""),
+                            "symbol": str(symbol or ""),
+                            "signal_type": str(sig),
+                            "ai_decision": str(ai_decision),
+                            "reason": str(reason),
+                            "signal_ts": int(signal_ts or 0),
+                        },
+                    )
+                    logger.info(
+                        f"AI entry filter rejected: strategy_id={strategy_id} symbol={symbol} signal={sig} ai={ai_decision} reason={reason}"
+                    )
+                    return False
+
             # 2. 计算下单数量
             available_capital = self._get_available_capital(strategy_id, initial_capital)
             
             amount = 0.0
-            sig = (signal_type or "").strip().lower()
 
             # Frontend position sizing alignment:
             # - open_* uses entry_pct from trading_config if provided (0~1 or 0~100 are both accepted)
@@ -2005,6 +2049,164 @@ class TradingExecutor:
         except Exception as e:
             logger.error(f"Failed to execute signal: {e}")
             return False
+
+    def _is_entry_ai_filter_enabled(self, *, ai_model_config: Optional[Dict[str, Any]], trading_config: Optional[Dict[str, Any]]) -> bool:
+        """Detect whether the strategy enabled 'AI filter on entry (open positions only)'."""
+        amc = ai_model_config if isinstance(ai_model_config, dict) else {}
+        tc = trading_config if isinstance(trading_config, dict) else {}
+
+        # Accept multiple key names for forward/backward compatibility.
+        candidates = [
+            amc.get("entry_ai_filter_enabled"),
+            amc.get("entryAiFilterEnabled"),
+            amc.get("ai_filter_enabled"),
+            amc.get("aiFilterEnabled"),
+            amc.get("enable_ai_filter"),
+            amc.get("enableAiFilter"),
+            tc.get("entry_ai_filter_enabled"),
+            tc.get("ai_filter_enabled"),
+            tc.get("enable_ai_filter"),
+            tc.get("enableAiFilter"),
+        ]
+        for v in candidates:
+            if v is None:
+                continue
+            if isinstance(v, bool):
+                return bool(v)
+            s = str(v).strip().lower()
+            if s in ("1", "true", "yes", "y", "on", "enabled"):
+                return True
+            if s in ("0", "false", "no", "n", "off", "disabled"):
+                return False
+        return False
+
+    def _entry_ai_filter_allows(
+        self,
+        *,
+        strategy_id: int,
+        symbol: str,
+        signal_type: str,
+        ai_model_config: Optional[Dict[str, Any]],
+        trading_config: Optional[Dict[str, Any]],
+    ) -> Tuple[bool, Dict[str, Any]]:
+        """
+        Run internal AI analysis and decide whether an entry signal is allowed.
+
+        Returns:
+          (allowed, info)
+          - allowed: True -> proceed; False -> hold (reject open)
+          - info: {ai_decision, reason, analysis_error?}
+        """
+        amc = ai_model_config if isinstance(ai_model_config, dict) else {}
+        tc = trading_config if isinstance(trading_config, dict) else {}
+
+        # Market for AnalysisService. Live trading executor is Crypto-focused.
+        market = str(amc.get("market") or amc.get("analysis_market") or "Crypto").strip() or "Crypto"
+
+        # Optional model override (OpenRouter model id)
+        model = amc.get("model") or amc.get("openrouter_model") or amc.get("openrouterModel") or None
+        model = str(model).strip() if model else None
+
+        # Prefer zh-CN for local UI; can be overridden.
+        language = amc.get("language") or amc.get("lang") or tc.get("language") or "zh-CN"
+        language = str(language or "zh-CN")
+
+        try:
+            # Lazy import to avoid circular deps + heavy init unless the filter is enabled and entry signal happens.
+            from app.services.analysis import AnalysisService
+
+            service = AnalysisService()
+            result = service.analyze(market, symbol, language, model=model)
+
+            if isinstance(result, dict) and result.get("error"):
+                return False, {"ai_decision": "", "reason": "analysis_error", "analysis_error": str(result.get("error") or "")}
+
+            ai_dec = self._extract_ai_trade_decision(result)
+            if not ai_dec:
+                return False, {"ai_decision": "", "reason": "missing_ai_decision"}
+
+            expected = "BUY" if signal_type == "open_long" else "SELL"
+            if ai_dec == expected:
+                return True, {"ai_decision": ai_dec, "reason": "match"}
+            if ai_dec == "HOLD":
+                return False, {"ai_decision": ai_dec, "reason": "ai_hold"}
+            return False, {"ai_decision": ai_dec, "reason": "direction_mismatch"}
+        except Exception as e:
+            return False, {"ai_decision": "", "reason": "analysis_exception", "analysis_error": str(e)}
+
+    def _extract_ai_trade_decision(self, analysis_result: Any) -> str:
+        """
+        Normalize AI analysis output into one of: BUY / SELL / HOLD / "".
+        We primarily look at final_decision.decision, with fallbacks.
+        """
+        if not isinstance(analysis_result, dict):
+            return ""
+
+        def _pick(*paths: str) -> str:
+            for p in paths:
+                cur: Any = analysis_result
+                ok = True
+                for k in p.split("."):
+                    if not isinstance(cur, dict):
+                        ok = False
+                        break
+                    cur = cur.get(k)
+                if ok and cur is not None:
+                    s = str(cur).strip()
+                    if s:
+                        return s
+            return ""
+
+        raw = _pick("final_decision.decision", "trader_decision.decision", "decision", "final.decision")
+        s = raw.strip().upper()
+        if not s:
+            return ""
+
+        # Common variants / synonyms
+        if "BUY" in s or s == "LONG" or "LONG" in s:
+            return "BUY"
+        if "SELL" in s or s == "SHORT" or "SHORT" in s:
+            return "SELL"
+        if "HOLD" in s or "WAIT" in s or "NEUTRAL" in s:
+            return "HOLD"
+        return s if s in ("BUY", "SELL", "HOLD") else ""
+
+    def _persist_browser_notification(
+        self,
+        *,
+        strategy_id: int,
+        symbol: str,
+        signal_type: str,
+        title: str,
+        message: str,
+        payload: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Best-effort persist notification row for the frontend '通知' panel (browser channel)."""
+        try:
+            now = int(time.time())
+            with get_db_connection() as db:
+                cur = db.cursor()
+                cur.execute(
+                    """
+                    INSERT INTO qd_strategy_notifications
+                    (strategy_id, symbol, signal_type, channels, title, message, payload_json, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        int(strategy_id),
+                        str(symbol or ""),
+                        str(signal_type or ""),
+                        "browser",
+                        str(title or ""),
+                        str(message or ""),
+                        json.dumps(payload or {}, ensure_ascii=False),
+                        int(now),
+                    ),
+                )
+                db.commit()
+                cur.close()
+        except Exception as e:
+            logger.warning(f"persist_browser_notification failed: {e}")
 
     def _execute_exchange_order(
         self,

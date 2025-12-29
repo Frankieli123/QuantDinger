@@ -200,17 +200,17 @@ export default {
       // Static footer config (local OSS build)
       menuFooterConfig: {
         contact: {
-          support_url: 'https://github.com/',
-          feature_request_url: 'https://github.com/',
-          email: 'support@example.com',
-          live_chat_url: 'https://github.com/'
+          support_url: 'https://t.me/worldinbroker',
+          feature_request_url: 'https://github.com/brokermr810/QuantDinger/issues',
+          email: 'brokermr810@gmail.com',
+          live_chat_url: 'https://t.me/worldinbroker'
         },
         social_accounts: [
-          { name: 'GitHub', icon: 'github', url: 'https://github.com/' },
-          { name: 'X', icon: 'x', url: 'https://x.com/' },
-          { name: 'Discord', icon: 'discord', url: 'https://discord.com/' },
-          { name: 'Telegram', icon: 'telegram', url: 'https://t.me/' },
-          { name: 'YouTube', icon: 'youtube', url: 'https://www.youtube.com/' }
+          { name: 'GitHub', icon: 'github', url: 'https://github.com/brokermr810/QuantDinger' },
+          { name: 'X', icon: 'x', url: 'https://x.com/HenryCryption' },
+          { name: 'Discord', icon: 'discord', url: 'https://discord.gg/cn6HVE2KC' },
+          { name: 'Telegram', icon: 'telegram', url: 'https://t.me/worldinbroker' },
+          { name: 'YouTube', icon: 'youtube', url: 'https://youtube.com/@quantdinger' }
         ],
         legal: {
           user_agreement: '',

@@ -593,6 +593,7 @@ class StrategyService:
         indicator_config = payload.get('indicator_config') if payload.get('indicator_config') is not None else (existing.get('indicator_config') or {})
         trading_config = payload.get('trading_config') if payload.get('trading_config') is not None else (existing.get('trading_config') or {})
         exchange_config = payload.get('exchange_config') if payload.get('exchange_config') is not None else (existing.get('exchange_config') or {})
+        ai_model_config = payload.get('ai_model_config') if payload.get('ai_model_config') is not None else (existing.get('ai_model_config') or {})
 
         symbol = (trading_config or {}).get('symbol')
         timeframe = (trading_config or {}).get('timeframe')
@@ -617,6 +618,7 @@ class StrategyService:
                     exchange_config = ?,
                     indicator_config = ?,
                     trading_config = ?,
+                    ai_model_config = ?,
                     updated_at = ?
                 WHERE id = ?
                 """,
@@ -633,6 +635,7 @@ class StrategyService:
                     self._dump_json_or_encrypt(exchange_config, encrypt=False) if exchange_config else '',
                     self._dump_json_or_encrypt(indicator_config, encrypt=False),
                     self._dump_json_or_encrypt(trading_config, encrypt=False),
+                    self._dump_json_or_encrypt(ai_model_config, encrypt=False),
                     now,
                     strategy_id
                 )

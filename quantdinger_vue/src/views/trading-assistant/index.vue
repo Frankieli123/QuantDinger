@@ -129,49 +129,70 @@
           <a-card :bordered="false" class="strategy-header-card">
             <div class="strategy-header">
               <div class="header-left">
-                <h3 class="strategy-title">{{ selectedStrategy.strategy_name }}</h3>
-                <div class="strategy-meta">
-                  <a-tag
-                    :color="getStatusColor(selectedStrategy.status)"
-                    :class="{ 'status-stopped': selectedStrategy.status === 'stopped' }"
-                  >
+                <div class="strategy-title-row">
+                  <h3 class="strategy-title">{{ selectedStrategy.strategy_name }}</h3>
+                  <div class="status-badge" :class="[`status-${selectedStrategy.status}`]">
+                    <span class="status-dot"></span>
                     {{ getStatusText(selectedStrategy.status) }}
-                  </a-tag>
-                  <!-- <a-tag>{{ getStrategyTypeText(selectedStrategy.strategy_type) }}</a-tag> -->
-                  <span class="meta-item" v-if="selectedStrategy.indicator_config && selectedStrategy.indicator_config.indicator_name">
+                  </div>
+                </div>
+
+                <!-- 关键数据卡片 -->
+                <div class="key-stats-grid">
+                  <div class="stat-card" v-if="selectedStrategy.initial_capital || (selectedStrategy.trading_config && selectedStrategy.trading_config.initial_capital)">
+                    <div class="stat-icon investment">
+                      <a-icon type="wallet" />
+                    </div>
+                    <div class="stat-content">
+                      <div class="stat-label">{{ $t('trading-assistant.detail.totalInvestment') }}</div>
+                      <div class="stat-value">${{ ((selectedStrategy.initial_capital || selectedStrategy.trading_config?.initial_capital) || 0).toLocaleString() }}</div>
+                    </div>
+                  </div>
+                  <div class="stat-card" v-if="currentEquity !== null">
+                    <div class="stat-icon equity">
+                      <a-icon type="fund" />
+                    </div>
+                    <div class="stat-content">
+                      <div class="stat-label">{{ $t('trading-assistant.detail.currentEquity') }}</div>
+                      <div class="stat-value" :class="getEquityColorClass">{{ formatCurrency(currentEquity) }}</div>
+                    </div>
+                  </div>
+                  <div class="stat-card pnl-card" v-if="totalPnl !== null" :class="{ 'profit': totalPnl > 0, 'loss': totalPnl < 0 }">
+                    <div class="stat-icon pnl">
+                      <a-icon :type="totalPnl >= 0 ? 'rise' : 'fall'" />
+                    </div>
+                    <div class="stat-content">
+                      <div class="stat-label">{{ $t('trading-assistant.detail.totalPnl') }}</div>
+                      <div class="stat-value" :class="getPnlColorClass">
+                        {{ formatPnl(totalPnl) }}
+                        <span class="pnl-percent">({{ formatPnlPercent(totalPnlPercent) }})</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 策略详情标签 -->
+                <div class="strategy-tags">
+                  <div class="tag-item" v-if="selectedStrategy.trading_config">
+                    <a-icon type="stock" />
+                    <span>{{ selectedStrategy.trading_config.symbol }}</span>
+                  </div>
+                  <div class="tag-item" v-if="selectedStrategy.indicator_config && selectedStrategy.indicator_config.indicator_name">
                     <a-icon type="line-chart" />
-                    {{ $t('trading-assistant.detail.indicatorName') }}: {{ selectedStrategy.indicator_config.indicator_name }}
-                  </span>
-                  <span class="meta-item" v-if="selectedStrategy.trading_config">
-                    <a-icon type="dollar" />
-                    {{ selectedStrategy.trading_config.symbol }}
-                  </span>
-                  <span class="meta-item" v-if="selectedStrategy.trading_config">
-                    <a-icon type="percentage" />
-                    {{ $t('trading-assistant.form.leverage') }}: {{ selectedStrategy.trading_config.leverage || 1 }}x
-                  </span>
-                  <span class="meta-item" v-if="selectedStrategy.trading_config && selectedStrategy.trading_config.trade_direction">
+                    <span>{{ selectedStrategy.indicator_config.indicator_name }}</span>
+                  </div>
+                  <div class="tag-item" v-if="selectedStrategy.trading_config">
+                    <a-icon type="thunderbolt" />
+                    <span>{{ selectedStrategy.trading_config.leverage || 1 }}x</span>
+                  </div>
+                  <div class="tag-item" v-if="selectedStrategy.trading_config && selectedStrategy.trading_config.trade_direction">
                     <a-icon type="swap" />
-                    {{ $t('trading-assistant.form.tradeDirection') }}: {{ getTradeDirectionText(selectedStrategy.trading_config.trade_direction) }}
-                  </span>
-                  <span class="meta-item" v-if="selectedStrategy.trading_config && selectedStrategy.trading_config.timeframe">
+                    <span>{{ getTradeDirectionText(selectedStrategy.trading_config.trade_direction) }}</span>
+                  </div>
+                  <div class="tag-item" v-if="selectedStrategy.trading_config && selectedStrategy.trading_config.timeframe">
                     <a-icon type="clock-circle" />
-                    {{ $t('trading-assistant.form.klinePeriod') }}: {{ selectedStrategy.trading_config.timeframe }}
-                  </span>
-                  <span class="meta-item" v-if="selectedStrategy.initial_capital || (selectedStrategy.trading_config && selectedStrategy.trading_config.initial_capital)">
-                    <a-icon type="dollar" />
-                    {{ $t('trading-assistant.detail.totalInvestment') }}: ${{ ((selectedStrategy.initial_capital || selectedStrategy.trading_config?.initial_capital) || 0).toLocaleString() }}
-                  </span>
-                  <!-- 新增当前净值 -->
-                  <span class="meta-item" v-if="currentEquity !== null">
-                    <a-icon type="money-collect" />
-                    {{ $t('trading-assistant.detail.currentEquity') }}: <span :class="getEquityColorClass">{{ formatCurrency(currentEquity) }}</span>
-                  </span>
-                  <!-- 新增总盈亏 -->
-                  <span class="meta-item" v-if="totalPnl !== null">
-                    <a-icon type="rise" />
-                    {{ $t('trading-assistant.detail.totalPnl') }}: <span :class="getPnlColorClass">{{ formatPnl(totalPnl) }} ({{ formatPnlPercent(totalPnlPercent) }})</span>
-                  </span>
+                    <span>{{ selectedStrategy.trading_config.timeframe }}</span>
+                  </div>
                 </div>
               </div>
               <div class="header-right">
@@ -179,6 +200,7 @@
                   v-if="selectedStrategy.status === 'stopped'"
                   type="primary"
                   size="large"
+                  class="action-btn start-btn"
                   @click="handleStartStrategy(selectedStrategy.id)"
                 >
                   <a-icon type="play-circle" />
@@ -188,6 +210,7 @@
                   v-if="selectedStrategy.status === 'running'"
                   type="danger"
                   size="large"
+                  class="action-btn stop-btn"
                   @click="handleStopStrategy(selectedStrategy.id)"
                 >
                   <a-icon type="pause-circle" />
@@ -725,17 +748,6 @@
                     />
                   </div>
                   <div class="ai-filter-hint">{{ $t('trading-assistant.form.enableAiFilterHint') }}</div>
-
-                  <div v-show="aiFilterEnabledUi" class="ai-filter-body">
-                    <div class="ai-filter-prompt-label">{{ $t('trading-assistant.form.aiFilterPrompt') }}</div>
-                    <a-textarea
-                      v-model="aiFilterPromptUi"
-                      :rows="4"
-                      :placeholder="$t('trading-assistant.placeholders.inputAiFilterPrompt')"
-                      @input="onAiFilterPromptInput"
-                    />
-                    <div class="ai-filter-prompt-hint">{{ $t('trading-assistant.form.aiFilterPromptHint') }}</div>
-                  </div>
                 </div>
               </a-form>
             </div>
@@ -979,7 +991,7 @@
 </template>
 
 <script>
-import { getStrategyList, startStrategy, stopStrategy, deleteStrategy, createStrategy, updateStrategy, testExchangeConnection, getStrategyEquityCurve, getStrategyNotifications } from '@/api/strategy'
+import { getStrategyList, startStrategy, stopStrategy, deleteStrategy, createStrategy, updateStrategy, testExchangeConnection, getStrategyEquityCurve } from '@/api/strategy'
 import { getWatchlist } from '@/api/market'
 import { listExchangeCredentials, getExchangeCredential, createExchangeCredential } from '@/api/credentials'
 import { baseMixin } from '@/store/app-mixin'
@@ -1109,7 +1121,6 @@ export default {
       trailingEnabledUi: false,
       entryPctMaxUi: 100,
       aiFilterEnabledUi: false,
-      aiFilterPromptUi: '',
       isEditMode: false, // 是否为编辑模式
       supportedIPs: [], // 白名单IP列表
       executionModeUi: 'signal',
@@ -1118,13 +1129,7 @@ export default {
       loadingExchangeCredentials: false,
       exchangeCredentials: [],
       saveCredentialUi: false,
-      suppressApiClearOnce: false,
-      // Signal notifications (browser channel) -> sound-only reminder
-      notifyPollTimer: null,
-      notifySinceId: 0,
-      notifyPollIntervalMs: 3000,
-      beepEnabled: true,
-      beepCtx: null
+      suppressApiClearOnce: false
       // Market category is inferred from Step 1 watchlist symbol ("Market:SYMBOL").
     }
   },
@@ -1136,69 +1141,8 @@ export default {
   },
   beforeDestroy () {
     this.stopEquityPolling()
-    this.stopSignalNotifyPolling()
   },
   methods: {
-    playSignalBeep () {
-      try {
-        const AudioCtx = window.AudioContext || window.webkitAudioContext
-        if (!AudioCtx) return
-        if (!this.beepCtx) this.beepCtx = new AudioCtx()
-        const ctx = this.beepCtx
-        // Some browsers require resume after user interaction
-        if (ctx.state === 'suspended' && typeof ctx.resume === 'function') {
-          ctx.resume().catch(() => {})
-        }
-        const o = ctx.createOscillator()
-        const g = ctx.createGain()
-        o.type = 'sine'
-        o.frequency.value = 880
-        g.gain.value = 0.05
-        o.connect(g)
-        g.connect(ctx.destination)
-        o.start()
-        o.stop(ctx.currentTime + 0.15)
-      } catch (e) {}
-    },
-    stopSignalNotifyPolling () {
-      if (this.notifyPollTimer) {
-        clearInterval(this.notifyPollTimer)
-        this.notifyPollTimer = null
-      }
-    },
-    startSignalNotifyPolling (strategyId) {
-      this.stopSignalNotifyPolling()
-      this.notifySinceId = 0
-      const sid = Number(strategyId || 0)
-      if (!sid) return
-      this.notifyPollTimer = setInterval(() => {
-        this.pollSignalNotifications(sid)
-      }, Number(this.notifyPollIntervalMs || 3000))
-      // first tick
-      this.pollSignalNotifications(sid)
-    },
-    async pollSignalNotifications (strategyId) {
-      const sid = Number(strategyId || 0)
-      if (!sid) return
-      try {
-        const res = await getStrategyNotifications({ id: sid, since_id: this.notifySinceId || 0, limit: 50 })
-        if (!res || res.code !== 1) return
-        const items = (res.data && res.data.items) || []
-        if (!Array.isArray(items) || items.length === 0) return
-        // Backend returns DESC; compute max id.
-        let maxId = this.notifySinceId || 0
-        for (const it of items) {
-          const nid = Number(it && it.id)
-          if (nid && nid > maxId) maxId = nid
-        }
-        if (maxId > (this.notifySinceId || 0)) {
-          this.notifySinceId = maxId
-          if (this.beepEnabled && this.notifyChannelsUi && this.notifyChannelsUi.includes('browser')) {
-            this.playSignalBeep()
-          }
-        }
-      } catch (e) {}
-    },
     async loadWatchlist () {
       this.loadingWatchlist = true
       try {
@@ -1472,7 +1416,6 @@ export default {
       let trailingEnabled = false
       // Initialize AI filter state
       let aiFilterEnabled = false
-      let aiFilterPrompt = ''
 
       if (strategy.trading_config) {
         const tc = strategy.trading_config || {}
@@ -1482,7 +1425,6 @@ export default {
         // Check AI filter - handle various truthy values
         const aiVal = tc.enable_ai_filter
         aiFilterEnabled = aiVal === true || aiVal === 'true' || aiVal === 1 || aiVal === '1'
-        aiFilterPrompt = (typeof tc.ai_filter_prompt === 'string') ? tc.ai_filter_prompt : ''
 
         // Determine which collapse panels to open based on config to ensure fields are rendered
         const scaleObj = (tc.scale && typeof tc.scale === 'object') ? tc.scale : null
@@ -1515,7 +1457,6 @@ export default {
       }
       this.trailingEnabledUi = trailingEnabled
       this.aiFilterEnabledUi = aiFilterEnabled
-      this.aiFilterPromptUi = aiFilterPrompt
 
       // Wait for DOM update to ensure v-if fields (trailing) and Collapse panels are rendered
       await this.$nextTick()
@@ -1647,20 +1588,9 @@ export default {
           adverse_reduce_size_pct: (tc.adverse_reduce_size_pct !== undefined) ? (tc.adverse_reduce_size_pct || 0) : (adverseReduceObj ? (adverseReduceObj.sizePct || 0) : 0),
           adverse_reduce_max_times: (tc.adverse_reduce_max_times !== undefined) ? (tc.adverse_reduce_max_times || 0) : (adverseReduceObj ? (adverseReduceObj.maxTimes || 0) : 0),
           entry_pct: (tc.entry_pct === 0 || tc.entry_pct) ? tc.entry_pct : (posObj && posObj.entryPct ? posObj.entryPct : 100),
-          // AI智能决策过滤 - 单独处理 prompt 回填，确保 v-if 已生效
+          // AI智能决策过滤
           enable_ai_filter: aiFilterEnabled
-          // ai_filter_prompt: tc.ai_filter_prompt || '' // Move to separate setFieldsValue to be safe
         })
-
-        // Ensure prompt is set after main block
-      // Always set prompt (even if disabled) so user won't lose it after toggling.
-      this.$nextTick(() => {
-        try {
-          this.form.setFieldsValue({
-            ai_filter_prompt: tc.ai_filter_prompt || ''
-          })
-        } catch (e) {}
-      })
 
         this.$nextTick(() => {
           this.recalcEntryPctMaxUi()
@@ -1673,7 +1603,6 @@ export default {
       this.currentEquity = null // 重置当前净值
       this.loadStrategyDetails()
       this.startEquityPolling() // 开始轮询净值
-      this.startSignalNotifyPolling(strategy && strategy.id) // 浏览器声音提醒（策略信号）
     },
     async loadStrategyDetails () {
       if (!this.selectedStrategy) {
@@ -1729,7 +1658,6 @@ export default {
       this.trailingEnabledUi = false
       this.entryPctMaxUi = 100
       this.aiFilterEnabledUi = false
-      this.aiFilterPromptUi = ''
 
       this.form.resetFields()
     },
@@ -1985,15 +1913,6 @@ export default {
       // Ensure rc-form value is always in sync even if decorator event binding gets overridden.
       try {
         this.form && this.form.setFieldsValue && this.form.setFieldsValue({ enable_ai_filter: !!checked })
-      } catch (e) {}
-      // If disabled, we might want to clear the prompt, but it's optional.
-    },
-    onAiFilterPromptInput (valOrEvent) {
-      // Keep prompt value in Vue state and (best-effort) in rc-form.
-      const v = (valOrEvent && valOrEvent.target) ? valOrEvent.target.value : valOrEvent
-      this.aiFilterPromptUi = (typeof v === 'string') ? v : (this.aiFilterPromptUi || '')
-      try {
-        this.form && this.form.setFieldsValue && this.form.setFieldsValue({ ai_filter_prompt: this.aiFilterPromptUi })
       } catch (e) {}
     },
     filterIndicatorOption (input, option) {
@@ -2344,16 +2263,7 @@ export default {
             }
 
             // AI filter values: source of truth is the reactive UI state to avoid rc-form edge cases.
-            let rawAiPrompt = values.ai_filter_prompt
-            try {
-              if (rawAiPrompt === undefined) rawAiPrompt = this.form.getFieldValue('ai_filter_prompt')
-            } catch (e) {}
             const enableAiFilter = !!this.aiFilterEnabledUi
-            const aiFilterPrompt = (
-              (typeof rawAiPrompt === 'string' && rawAiPrompt.length > 0)
-                ? rawAiPrompt
-                : (typeof this.aiFilterPromptUi === 'string' ? this.aiFilterPromptUi : '')
-            )
 
             const marketType = (values.market_type === 'futures' ? 'swap' : (values.market_type || 'swap'))
             let leverage = values.leverage || 1
@@ -2431,8 +2341,7 @@ export default {
                 commission: values.commission || 0,
                 slippage: values.slippage || 0,
                 // AI智能决策过滤
-                enable_ai_filter: enableAiFilter,
-                ai_filter_prompt: aiFilterPrompt
+                enable_ai_filter: enableAiFilter
               }
             }
 
@@ -2495,10 +2404,22 @@ export default {
 </script>
 
 <style lang="less" scoped>
+// 主色调变量
+@primary-color: #1890ff;
+@primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+@success-color: #0ecb81;
+@danger-color: #f6465d;
+@warning-color: #f0b90b;
+@card-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+@card-shadow-hover: 0 8px 32px rgba(0, 0, 0, 0.12);
+@border-radius-lg: 16px;
+@border-radius-md: 12px;
+@border-radius-sm: 8px;
+
 .trading-assistant {
   padding: 0px;
-  // min-height: 100vh;
   height: calc(100vh - 120px);
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
 
   .strategy-layout {
     height: calc(100vh - 120px);
@@ -2835,37 +2756,78 @@ export default {
       height: 100%;
       display: flex;
       flex-direction: column;
+      border-radius: @border-radius-lg;
+      box-shadow: @card-shadow;
+      border: none;
+      overflow: hidden;
+      transition: box-shadow 0.3s ease;
+
+      &:hover {
+        box-shadow: @card-shadow-hover;
+      }
 
       .card-title {
         display: flex;
         justify-content: space-between;
         align-items: center;
+
+        span {
+          font-size: 16px;
+          font-weight: 700;
+          background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+        }
+
+        .ant-btn-primary {
+          border-radius: @border-radius-sm;
+          background: linear-gradient(135deg, @primary-color 0%, #40a9ff 100%);
+          border: none;
+          box-shadow: 0 4px 12px rgba(24, 144, 255, 0.35);
+          transition: all 0.3s ease;
+
+          &:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(24, 144, 255, 0.45);
+          }
+        }
       }
 
       /deep/ .ant-card-body {
         flex: 1;
         overflow-y: auto;
         background: #fff;
+        padding: 12px;
       }
 
       /deep/ .ant-card-head {
-        background: #fff;
+        background: linear-gradient(180deg, #fff 0%, #fafbfc 100%);
+        border-bottom: 1px solid #f0f0f0;
       }
 
       .strategy-list-item {
         cursor: pointer;
-        padding: 12px;
-        border-radius: 4px;
-        transition: all 0.3s;
+        padding: 14px 16px;
+        border-radius: @border-radius-md;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         position: relative;
+        margin-bottom: 8px;
+        background: #fafbfc;
+        border: 1px solid transparent;
 
         &:hover {
-          background-color: var(--hover-bg-color, #f5f5f5);
+          background: linear-gradient(135deg, #f0f7ff 0%, #f5f9ff 100%);
+          border-color: rgba(24, 144, 255, 0.2);
+          transform: translateX(4px);
+          box-shadow: 0 2px 12px rgba(24, 144, 255, 0.1);
         }
 
         &.active {
-          background-color: var(--active-bg-color, #e6f7ff);
-          border-left: 3px solid var(--primary-color, #1890ff);
+          background: linear-gradient(135deg, #e6f4ff 0%, #f0f9ff 100%);
+          border-color: @primary-color;
+          border-left: 4px solid @primary-color;
+          box-shadow: 0 4px 16px rgba(24, 144, 255, 0.15);
         }
 
         // 移动端优化点击区域
@@ -2886,46 +2848,58 @@ export default {
           .strategy-name-wrapper {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
             flex: 1;
-            min-width: 0; // 允许内容收缩
+            min-width: 0;
 
             .strategy-name {
               font-weight: 600;
               font-size: 14px;
               flex-shrink: 0;
+              color: #1e3a5f;
+              transition: color 0.2s ease;
             }
 
-              .exchange-tag {
-                flex-shrink: 0;
-                display: inline-flex;
-                align-items: center;
+            .exchange-tag {
+              flex-shrink: 0;
+              display: inline-flex;
+              align-items: center;
+              font-size: 11px;
+              line-height: 1.5;
+              padding: 2px 8px;
+              border-radius: 6px;
+              background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+              border: 1px solid rgba(102, 126, 234, 0.2);
+              color: #667eea;
+              transition: all 0.2s ease;
+
+              .anticon {
                 font-size: 11px;
-                line-height: 1.5;
-
-                .anticon {
-                  font-size: 12px;
-                }
-              }
-
-              .strategy-type-tag {
-                flex-shrink: 0;
-                display: inline-flex;
-                align-items: center;
-                font-size: 11px;
-                line-height: 1.5;
-                margin-left: 4px;
-
-                .anticon {
-                  font-size: 11px;
-                  margin-right: 2px;
-                }
               }
             }
+
+            .strategy-type-tag {
+              flex-shrink: 0;
+              display: inline-flex;
+              align-items: center;
+              font-size: 10px;
+              line-height: 1.5;
+              margin-left: 4px;
+              padding: 2px 8px;
+              border-radius: 6px;
+              background: linear-gradient(135deg, rgba(156, 39, 176, 0.1) 0%, rgba(103, 58, 183, 0.1) 100%);
+              border: 1px solid rgba(156, 39, 176, 0.2);
+
+              .anticon {
+                font-size: 10px;
+                margin-right: 3px;
+              }
+            }
+          }
 
           /deep/ .status-stopped {
-            color: #ff4d4f !important;
-            border-color: #ff4d4f !important;
+            color: @danger-color !important;
+            border-color: @danger-color !important;
           }
         }
 
@@ -2947,33 +2921,58 @@ export default {
             .status-label {
               display: inline-flex;
               align-items: center;
-              padding: 2px 8px;
-              border-radius: 10px;
-              font-size: 12px;
+              gap: 6px;
+              padding: 4px 12px;
+              border-radius: 16px;
+              font-size: 11px;
               font-weight: 600;
               line-height: 1;
               border: 1px solid transparent;
               flex-shrink: 0;
-              background: #f0f2f5;
+              background: linear-gradient(135deg, #f0f2f5 0%, #e8eaed 100%);
               color: #595959;
+              transition: all 0.2s ease;
+
+              &::before {
+                content: '';
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background: currentColor;
+              }
             }
 
             .status-running {
-              background: rgba(14, 203, 129, 0.12);
-              color: #0ecb81;
-              border-color: rgba(14, 203, 129, 0.35);
+              background: linear-gradient(135deg, rgba(14, 203, 129, 0.15) 0%, rgba(14, 203, 129, 0.08) 100%);
+              color: @success-color;
+              border-color: rgba(14, 203, 129, 0.3);
+              box-shadow: 0 2px 8px rgba(14, 203, 129, 0.2);
+
+              &::before {
+                animation: statusPulse 2s infinite;
+                box-shadow: 0 0 8px @success-color;
+              }
             }
 
             .status-stopped {
-              background: rgba(246, 70, 93, 0.12);
-              color: #f6465d;
-              border-color: rgba(246, 70, 93, 0.35);
+              background: linear-gradient(135deg, rgba(246, 70, 93, 0.15) 0%, rgba(246, 70, 93, 0.08) 100%);
+              color: @danger-color;
+              border-color: rgba(246, 70, 93, 0.3);
             }
 
             .status-error {
-              background: rgba(255, 77, 79, 0.12);
+              background: linear-gradient(135deg, rgba(255, 77, 79, 0.15) 0%, rgba(255, 77, 79, 0.08) 100%);
               color: #ff4d4f;
-              border-color: rgba(255, 77, 79, 0.35);
+              border-color: rgba(255, 77, 79, 0.3);
+            }
+
+            @keyframes statusPulse {
+              0%, 100% {
+                opacity: 1;
+              }
+              50% {
+                opacity: 0.5;
+              }
             }
 
             .info-item {
@@ -2996,88 +2995,299 @@ export default {
     height: 100%;
     display: flex;
     flex-direction: column;
+    overflow-y: auto;
 
     .empty-detail {
       height: 100%;
       display: flex;
       align-items: center;
       justify-content: center;
+      background: linear-gradient(135deg, rgba(255,255,255,0.8) 0%, rgba(248,250,252,0.9) 100%);
+      border-radius: @border-radius-lg;
+      border: 2px dashed #e0e6ed;
+      transition: all 0.3s ease;
+
+      &:hover {
+        border-color: @primary-color;
+        background: linear-gradient(135deg, rgba(24,144,255,0.02) 0%, rgba(24,144,255,0.05) 100%);
+      }
+
+      /deep/ .ant-empty-image {
+        opacity: 0.6;
+      }
+
+      /deep/ .ant-empty-description {
+        color: #8c8c8c;
+        font-size: 14px;
+      }
     }
 
     .strategy-detail-panel {
-      height: 100%;
       display: flex;
       flex-direction: column;
       gap: 16px;
+      min-height: 100%;
 
       .strategy-header-card {
-        background: #fff;
-        border-color: #e8e8e8;
+        flex-shrink: 0; // 防止头部被压缩
+        background: linear-gradient(135deg, #fff 0%, #f8fafc 100%);
+        border: none;
+        border-radius: @border-radius-lg;
+        box-shadow: @card-shadow;
+        transition: all 0.3s ease;
+
+        &:hover {
+          box-shadow: @card-shadow-hover;
+        }
 
         /deep/ .ant-card-head {
-          background: #fff;
-          border-bottom-color: #e8e8e8;
+          background: transparent;
+          border-bottom: none;
         }
 
         /deep/ .ant-card-body {
-          background: #fff;
+          background: transparent;
+          padding: 20px;
         }
 
         .strategy-header {
           display: flex;
           justify-content: space-between;
           align-items: flex-start;
+          gap: 24px;
 
           .header-left {
             flex: 1;
+            min-width: 0;
 
-            .strategy-title {
-              font-size: 20px;
-              font-weight: 600;
-              margin: 0 0 12px 0;
-            }
-
-            .strategy-meta {
+            .strategy-title-row {
               display: flex;
               align-items: center;
               gap: 12px;
+              margin-bottom: 16px;
               flex-wrap: wrap;
 
-              .meta-item {
+              .strategy-title {
+                font-size: 20px;
+                font-weight: 700;
+                margin: 0;
+                background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+              }
+
+              .status-badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                padding: 6px 14px;
+                border-radius: 20px;
+                font-size: 13px;
+                font-weight: 600;
+                transition: all 0.3s ease;
+
+                .status-dot {
+                  width: 8px;
+                  height: 8px;
+                  border-radius: 50%;
+                  animation: pulse 2s infinite;
+                }
+
+                &.status-running {
+                  background: linear-gradient(135deg, rgba(14, 203, 129, 0.15) 0%, rgba(14, 203, 129, 0.08) 100%);
+                  color: @success-color;
+                  border: 1px solid rgba(14, 203, 129, 0.3);
+
+                  .status-dot {
+                    background: @success-color;
+                    box-shadow: 0 0 12px @success-color;
+                  }
+                }
+
+                &.status-stopped {
+                  background: linear-gradient(135deg, rgba(246, 70, 93, 0.15) 0%, rgba(246, 70, 93, 0.08) 100%);
+                  color: @danger-color;
+                  border: 1px solid rgba(246, 70, 93, 0.3);
+
+                  .status-dot {
+                    background: @danger-color;
+                    animation: none;
+                  }
+                }
+
+                &.status-error {
+                  background: linear-gradient(135deg, rgba(255, 77, 79, 0.15) 0%, rgba(255, 77, 79, 0.08) 100%);
+                  color: #ff4d4f;
+                  border: 1px solid rgba(255, 77, 79, 0.3);
+
+                  .status-dot {
+                    background: #ff4d4f;
+                    animation: none;
+                  }
+                }
+              }
+            }
+
+            // 关键数据卡片网格
+            .key-stats-grid {
+              display: flex;
+              flex-wrap: wrap;
+              gap: 12px;
+              margin-bottom: 14px;
+
+              .stat-card {
                 display: flex;
-                align-items: flex-start;
+                align-items: center;
+                gap: 10px;
+                padding: 10px 14px;
+                background: #fff;
+                border-radius: @border-radius-sm;
+                border: 1px solid #f0f0f0;
+                transition: all 0.2s ease;
+
+                &:hover {
+                  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+                }
+
+                .stat-icon {
+                  width: 36px;
+                  height: 36px;
+                  border-radius: 8px;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  font-size: 16px;
+                  flex-shrink: 0;
+
+                  &.investment {
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: #fff;
+                  }
+
+                  &.equity {
+                    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+                    color: #fff;
+                  }
+
+                  &.pnl {
+                    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                    color: #fff;
+                  }
+                }
+
+                .stat-content {
+                  flex: 1;
+                  min-width: 0;
+
+                  .stat-label {
+                    font-size: 11px;
+                    color: #8c8c8c;
+                    margin-bottom: 2px;
+                  }
+
+                  .stat-value {
+                    font-size: 15px;
+                    font-weight: 700;
+                    color: #1e3a5f;
+                    line-height: 1.2;
+
+                    .pnl-percent {
+                      font-size: 12px;
+                      font-weight: 500;
+                      opacity: 0.8;
+                    }
+                  }
+                }
+
+                &.pnl-card {
+                  &.profit .stat-content .stat-value {
+                    color: @success-color;
+                  }
+
+                  &.loss .stat-content .stat-value {
+                    color: @danger-color;
+                  }
+                }
+              }
+            }
+
+            // 策略标签
+            .strategy-tags {
+              display: flex;
+              flex-wrap: wrap;
+              gap: 8px;
+
+              .tag-item {
+                display: inline-flex;
+                align-items: center;
                 gap: 4px;
-                color: var(--text-color-secondary, #8c8c8c);
-                font-size: 14px;
-                line-height: 1.5;
-                word-break: break-word;
+                padding: 4px 10px;
+                background: #f5f7fa;
+                border-radius: 14px;
+                font-size: 12px;
+                color: #5a6872;
+                border: 1px solid #e8ecf1;
 
                 .anticon {
-                  flex-shrink: 0;
-                  margin-top: 2px;
+                  font-size: 12px;
+                  color: @primary-color;
                 }
-
-                // 确保内部span可以换行
-                & > span:not(.anticon) {
-                  word-break: break-word;
-                  overflow-wrap: break-word;
-                }
-              }
-
-              .text-success {
-                color: #52c41a;
-              }
-
-              .text-danger {
-                color: #f5222d;
-              }
-
-              /deep/ .status-stopped {
-                color: #ff4d4f !important;
-                border-color: #ff4d4f !important;
               }
             }
           }
+
+          .header-right {
+            flex-shrink: 0;
+
+            .action-btn {
+              min-width: 120px;
+              height: 38px;
+              border-radius: @border-radius-sm;
+              font-size: 14px;
+              font-weight: 600;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              gap: 6px;
+              transition: all 0.2s ease;
+
+              .anticon {
+                font-size: 16px;
+              }
+
+              &.start-btn {
+                background: linear-gradient(135deg, @success-color 0%, #26d87d 100%);
+                border: none;
+                box-shadow: 0 2px 8px rgba(14, 203, 129, 0.3);
+
+                &:hover {
+                  box-shadow: 0 4px 12px rgba(14, 203, 129, 0.4);
+                }
+              }
+
+              &.stop-btn {
+                background: linear-gradient(135deg, @danger-color 0%, #ff6b7a 100%);
+                border: none;
+                box-shadow: 0 2px 8px rgba(246, 70, 93, 0.3);
+
+                &:hover {
+                  box-shadow: 0 4px 12px rgba(246, 70, 93, 0.4);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      @keyframes pulse {
+        0%, 100% {
+          opacity: 1;
+          transform: scale(1);
+        }
+        50% {
+          opacity: 0.6;
+          transform: scale(1.1);
         }
       }
 
@@ -3086,11 +3296,20 @@ export default {
         display: flex;
         flex-direction: column;
         background: #fff;
-        border-color: #e8e8e8;
+        border: none;
+        border-radius: @border-radius-lg;
+        box-shadow: @card-shadow;
+        transition: all 0.3s ease;
+        min-height: 400px; // 确保有足够的最小高度
+
+        &:hover {
+          box-shadow: @card-shadow-hover;
+        }
 
         /deep/ .ant-card-head {
-          background: #fff;
-          border-bottom-color: #e8e8e8;
+          background: linear-gradient(180deg, #fafbfc 0%, #fff 100%);
+          border-bottom: 1px solid #f0f0f0;
+          flex-shrink: 0;
         }
 
         /deep/ .ant-card-body {
@@ -3098,30 +3317,25 @@ export default {
           display: flex;
           flex-direction: column;
           padding: 16px;
-          min-height: 0; // 重要：允许 flex 子元素缩小
           background: #fff;
 
           .ant-tabs {
             flex: 1;
             display: flex;
             flex-direction: column;
-            min-height: 0; // 重要：允许 flex 子元素缩小
+
+            .ant-tabs-bar {
+              flex-shrink: 0;
+            }
 
             .ant-tabs-content {
               flex: 1;
-              min-height: 0; // 重要：允许 flex 子元素缩小
-              overflow: visible; // 允许内容显示
             }
 
             .ant-tabs-tabpane {
-              height: 100%;
-              overflow: visible;
-
-              .trading-records {
+              .trading-records,
+              .position-records {
                 width: 100%;
-                min-height: 300px;
-                overflow-x: auto;
-                overflow-y: visible;
               }
             }
           }
@@ -3131,18 +3345,26 @@ export default {
   }
 
   &.theme-dark {
-    background-color: var(--dark-bg-color, #141414);
+    background: linear-gradient(180deg, #0d1117 0%, #161b22 100%);
     color: var(--dark-text-color, #fff);
 
     // 左侧策略列表卡片
     .strategy-list-col {
       .strategy-list-card {
-        background: #1e222d;
-        border-color: #2a2e39;
+        background: linear-gradient(180deg, #1e222d 0%, #1a1e28 100%);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+
+        .card-title span {
+          background: linear-gradient(135deg, #e0e6ed 0%, #c5ccd6 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+        }
 
         /deep/ .ant-card-head {
-          background: #1e222d;
-          border-bottom-color: #2a2e39;
+          background: linear-gradient(180deg, #252a36 0%, #1e222d 100%);
+          border-bottom-color: rgba(255, 255, 255, 0.06);
 
           .ant-card-head-title {
             color: #d1d4dc;
@@ -3150,7 +3372,7 @@ export default {
         }
 
         /deep/ .ant-card-body {
-          background: #1e222d;
+          background: transparent;
         }
 
         /deep/ .ant-empty-description {
@@ -3159,7 +3381,7 @@ export default {
 
         /deep/ .ant-list {
           .ant-list-item {
-            border-bottom-color: #2a2e39;
+            border-bottom-color: rgba(255, 255, 255, 0.06);
 
             .ant-list-item-meta-title {
               color: #d1d4dc;
@@ -3173,20 +3395,22 @@ export default {
       }
 
       .strategy-list-item {
-        background: #1e222d;
-        border-color: #2a2e39;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(255, 255, 255, 0.04);
 
         &:hover {
-          background-color: var(--dark-hover-bg-color, #2a2e39);
+          background: linear-gradient(135deg, rgba(24, 144, 255, 0.08) 0%, rgba(24, 144, 255, 0.04) 100%);
+          border-color: rgba(24, 144, 255, 0.2);
         }
 
         &.active {
-          background-color: var(--dark-active-bg-color, #111b26);
-          border-left-color: var(--primary-color, #1890ff);
+          background: linear-gradient(135deg, rgba(24, 144, 255, 0.12) 0%, rgba(24, 144, 255, 0.06) 100%);
+          border-color: @primary-color;
+          box-shadow: 0 4px 20px rgba(24, 144, 255, 0.2);
         }
 
         .strategy-name {
-          color: #d1d4dc;
+          color: #e0e6ed;
         }
 
         .strategy-item-info {
@@ -3198,36 +3422,72 @@ export default {
     // 右侧策略详情卡片
     .strategy-detail-col {
       .strategy-header-card {
-        background: #1e222d;
-        border-color: #2a2e39;
+        background: linear-gradient(135deg, #1e222d 0%, #1a1e28 100%);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
 
         /deep/ .ant-card-head {
-          background: #1e222d;
-          border-bottom-color: #2a2e39;
+          background: transparent;
+          border-bottom: none;
         }
 
         /deep/ .ant-card-body {
-          background: #1e222d;
+          background: transparent;
         }
 
-        .strategy-title {
-          color: #d1d4dc;
+        .strategy-title-row {
+          .strategy-title {
+            background: linear-gradient(135deg, #e0e6ed 0%, #c5ccd6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+          }
         }
 
-        .strategy-meta {
-          .meta-item {
-            color: #868993;
+        .key-stats-grid {
+          .stat-card {
+            background: rgba(255, 255, 255, 0.03);
+            border-color: rgba(255, 255, 255, 0.06);
+
+            &:hover {
+              background: rgba(255, 255, 255, 0.06);
+              border-color: rgba(255, 255, 255, 0.1);
+            }
+
+            .stat-content {
+              .stat-label {
+                color: #868993;
+              }
+
+              .stat-value {
+                color: #e0e6ed;
+              }
+            }
+          }
+        }
+
+        .strategy-tags {
+          .tag-item {
+            background: rgba(255, 255, 255, 0.04);
+            border-color: rgba(255, 255, 255, 0.08);
+            color: #a0a8b3;
+
+            &:hover {
+              background: rgba(24, 144, 255, 0.1);
+              border-color: rgba(24, 144, 255, 0.3);
+            }
           }
         }
       }
 
       .strategy-content-card {
-        background: #1e222d;
-        border-color: #2a2e39;
+        background: linear-gradient(180deg, #1e222d 0%, #1a1e28 100%);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
 
         /deep/ .ant-card-head {
-          background: #1e222d;
-          border-bottom-color: #2a2e39;
+          background: rgba(255, 255, 255, 0.02);
+          border-bottom-color: rgba(255, 255, 255, 0.06);
 
           .ant-card-head-title {
             color: #d1d4dc;
@@ -3235,7 +3495,7 @@ export default {
         }
 
         /deep/ .ant-card-body {
-          background: #1e222d;
+          background: transparent;
         }
 
         /deep/ .ant-tabs {
@@ -3255,7 +3515,7 @@ export default {
             }
 
             .ant-tabs-ink-bar {
-              background: #1890ff;
+              background: linear-gradient(90deg, @primary-color 0%, #40a9ff 100%);
             }
           }
 
@@ -3308,25 +3568,6 @@ export default {
 }
 
 .ai-filter-hint {
-  margin-top: 6px;
-  font-size: 12px;
-  line-height: 1.5;
-  color: #8c8c8c;
-}
-
-.ai-filter-body {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px dashed #e8e8e8;
-}
-
-.ai-filter-prompt-label {
-  font-size: 12px;
-  color: #595959;
-  margin-bottom: 6px;
-}
-
-.ai-filter-prompt-hint {
   margin-top: 6px;
   font-size: 12px;
   line-height: 1.5;

@@ -43,6 +43,13 @@ export const asyncRouterMap = [
         name: 'IndicatorCommunity',
         component: () => import('@/views/indicator-community'),
         meta: { title: 'menu.dashboard.community', keepAlive: false, icon: 'shop', permission: ['dashboard'] }
+      },
+      // 系统设置
+      {
+        path: '/settings',
+        name: 'Settings',
+        component: () => import('@/views/settings'),
+        meta: { title: 'menu.settings', keepAlive: false, icon: 'setting', permission: ['dashboard'] }
       }
 
       // other

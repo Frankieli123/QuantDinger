@@ -241,19 +241,29 @@ export default {
 </script>
 
 <style lang="less" scoped>
+// 颜色变量
+@primary-color: #1890ff;
+@success-color: #0ecb81;
+@danger-color: #f6465d;
+
 .trading-records {
   width: 100%;
   min-height: 300px;
   padding: 0;
   overflow-x: visible;
   overflow-y: visible;
+
   .empty-state {
     display: flex;
     align-items: center;
     justify-content: center;
     min-height: 200px;
     padding: 40px 0;
+    background: linear-gradient(135deg, rgba(248, 250, 252, 0.5) 0%, rgba(241, 245, 249, 0.5) 100%);
+    border-radius: 12px;
+    border: 2px dashed #e0e6ed;
   }
+
   ::v-deep .ant-spin-nested-loading {
     overflow-x: visible;
   }
@@ -264,7 +274,6 @@ export default {
 
   ::v-deep .ant-table-wrapper {
     overflow-x: visible;
-    // 自定义细滚动条
     scrollbar-width: thin;
     scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
     &::-webkit-scrollbar {
@@ -296,27 +305,25 @@ export default {
   ::v-deep .ant-table-body {
     overflow-x: auto;
     overflow-y: visible;
-    // 自定义细滚动条
-    scrollbar-width: thin; // Firefox - 细滚动条
-    scrollbar-color: rgba(0, 0, 0, 0.2) transparent; // Firefox - 滑块颜色和轨道颜色
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
     &::-webkit-scrollbar {
-      height: 6px; // 横向滚动条高度
-      width: 6px; // 纵向滚动条宽度
+      height: 6px;
+      width: 6px;
     }
     &::-webkit-scrollbar-track {
-      background: transparent; // 轨道背景透明
+      background: transparent;
       border-radius: 3px;
     }
     &::-webkit-scrollbar-thumb {
-      background: rgba(0, 0, 0, 0.2); // 滑块颜色
+      background: rgba(0, 0, 0, 0.2);
       border-radius: 3px;
       &:hover {
-        background: rgba(0, 0, 0, 0.3); // 悬停时颜色
+        background: rgba(0, 0, 0, 0.3);
       }
     }
   }
 
-  // 表格容器的滚动条样式
   ::v-deep .ant-table-container {
     scrollbar-width: thin;
     scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
@@ -337,7 +344,6 @@ export default {
     }
   }
 
-  // 所有可能的表格滚动容器的滚动条样式
   ::v-deep .ant-table-content {
     scrollbar-width: thin;
     scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
@@ -358,23 +364,109 @@ export default {
     }
   }
 
-  // 防止单元格折行，触发横向滚动
   ::v-deep .ant-table-thead > tr > th,
   ::v-deep .ant-table-tbody > tr > td {
     white-space: nowrap;
   }
 
   ::v-deep .ant-table-thead > tr > th {
-    background: #fafafa;
+    background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
     font-weight: 600;
-    color: #333;
-    border-bottom: 1px solid #e8e8e8;
+    color: #475569;
+    border-bottom: 2px solid #e2e8f0;
+    padding: 12px 16px;
+    font-size: 13px;
   }
 
   ::v-deep .ant-table-tbody > tr > td {
     padding: 12px 16px;
-    color: #333;
-    border-bottom: 1px solid #e8e8e8;
+    color: #334155;
+    border-bottom: 1px solid #f1f5f9;
+    transition: background 0.2s ease;
+  }
+
+  ::v-deep .ant-table-tbody > tr {
+    &:hover > td {
+      background: #f0f7ff !important;
+    }
+  }
+
+  // 交易类型标签美化
+  ::v-deep .ant-tag {
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-weight: 600;
+    font-size: 11px;
+    border: none;
+    transition: all 0.2s ease;
+
+    &[color="green"], &[color="cyan"], &[color="lime"] {
+      background: linear-gradient(135deg, rgba(14, 203, 129, 0.15) 0%, rgba(14, 203, 129, 0.08) 100%);
+      color: @success-color;
+      border: 1px solid rgba(14, 203, 129, 0.3);
+    }
+
+    &[color="red"], &[color="magenta"] {
+      background: linear-gradient(135deg, rgba(246, 70, 93, 0.15) 0%, rgba(246, 70, 93, 0.08) 100%);
+      color: @danger-color;
+      border: 1px solid rgba(246, 70, 93, 0.3);
+    }
+
+    &[color="orange"] {
+      background: linear-gradient(135deg, rgba(250, 173, 20, 0.15) 0%, rgba(250, 173, 20, 0.08) 100%);
+      color: #d48806;
+      border: 1px solid rgba(250, 173, 20, 0.3);
+    }
+
+    &[color="blue"] {
+      background: linear-gradient(135deg, rgba(24, 144, 255, 0.15) 0%, rgba(24, 144, 255, 0.08) 100%);
+      color: @primary-color;
+      border: 1px solid rgba(24, 144, 255, 0.3);
+    }
+  }
+
+  // 分页器美化
+  ::v-deep .ant-pagination {
+    margin-top: 16px;
+    display: flex;
+    justify-content: flex-end;
+
+    .ant-pagination-item {
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      transition: all 0.2s ease;
+
+      &:hover {
+        border-color: @primary-color;
+
+        a {
+          color: @primary-color;
+        }
+      }
+
+      &.ant-pagination-item-active {
+        background: linear-gradient(135deg, @primary-color 0%, #40a9ff 100%);
+        border-color: @primary-color;
+
+        a {
+          color: #fff;
+        }
+      }
+    }
+
+    .ant-pagination-prev,
+    .ant-pagination-next {
+      .ant-pagination-item-link {
+        border-radius: 8px;
+        border: 1px solid #e2e8f0;
+        transition: all 0.2s ease;
+
+        &:hover {
+          border-color: @primary-color;
+          color: @primary-color;
+        }
+      }
+    }
   }
 
   // 暗黑主题适配

@@ -211,6 +211,11 @@ export default {
 </script>
 
 <style lang="less" scoped>
+// 颜色变量
+@primary-color: #1890ff;
+@success-color: #0ecb81;
+@danger-color: #f6465d;
+
 .position-records {
   width: 100%;
   min-height: 300px;
@@ -222,6 +227,9 @@ export default {
     justify-content: center;
     min-height: 200px;
     padding: 40px 0;
+    background: linear-gradient(135deg, rgba(248, 250, 252, 0.5) 0%, rgba(241, 245, 249, 0.5) 100%);
+    border-radius: 12px;
+    border: 2px dashed #e0e6ed;
   }
 
   ::v-deep .ant-table {
@@ -232,21 +240,21 @@ export default {
   // 自定义细滚动条
   ::v-deep .ant-table-body {
     overflow-x: auto;
-    scrollbar-width: thin; // Firefox - 细滚动条
-    scrollbar-color: rgba(0, 0, 0, 0.2) transparent; // Firefox - 滑块颜色和轨道颜色
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
     &::-webkit-scrollbar {
-      height: 6px; // 横向滚动条高度
-      width: 6px; // 纵向滚动条宽度
+      height: 6px;
+      width: 6px;
     }
     &::-webkit-scrollbar-track {
-      background: transparent; // 轨道背景透明
+      background: transparent;
       border-radius: 3px;
     }
     &::-webkit-scrollbar-thumb {
-      background: rgba(0, 0, 0, 0.2); // 滑块颜色
+      background: rgba(0, 0, 0, 0.2);
       border-radius: 3px;
       &:hover {
-        background: rgba(0, 0, 0, 0.3); // 悬停时颜色
+        background: rgba(0, 0, 0, 0.3);
       }
     }
   }
@@ -295,16 +303,51 @@ export default {
   }
 
   ::v-deep .ant-table-thead > tr > th {
-    background: #fafafa;
+    background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
     font-weight: 600;
-    color: #333;
-    border-bottom: 1px solid #e8e8e8;
+    color: #475569;
+    border-bottom: 2px solid #e2e8f0;
+    padding: 12px 16px;
+    font-size: 13px;
   }
 
   ::v-deep .ant-table-tbody > tr > td {
     padding: 12px 16px;
-    color: #333;
-    border-bottom: 1px solid #e8e8e8;
+    color: #334155;
+    border-bottom: 1px solid #f1f5f9;
+    transition: background 0.2s ease;
+
+    strong {
+      color: #1e293b;
+      font-weight: 600;
+    }
+  }
+
+  ::v-deep .ant-table-tbody > tr {
+    &:hover > td {
+      background: #f0f7ff !important;
+    }
+  }
+
+  // 方向标签美化
+  ::v-deep .ant-tag {
+    border-radius: 6px;
+    padding: 2px 10px;
+    font-weight: 600;
+    font-size: 11px;
+    border: none;
+
+    &[color="green"] {
+      background: linear-gradient(135deg, rgba(14, 203, 129, 0.15) 0%, rgba(14, 203, 129, 0.08) 100%);
+      color: @success-color;
+      border: 1px solid rgba(14, 203, 129, 0.3);
+    }
+
+    &[color="red"] {
+      background: linear-gradient(135deg, rgba(246, 70, 93, 0.15) 0%, rgba(246, 70, 93, 0.08) 100%);
+      color: @danger-color;
+      border: 1px solid rgba(246, 70, 93, 0.3);
+    }
   }
 
   // 暗黑主题适配
@@ -350,13 +393,35 @@ export default {
   }
 
   .profit {
-    color: #52c41a;
-    font-weight: 600;
+    color: @success-color;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    background: linear-gradient(135deg, rgba(14, 203, 129, 0.12) 0%, rgba(14, 203, 129, 0.06) 100%);
+    border-radius: 6px;
+
+    &::before {
+      content: '▲';
+      font-size: 8px;
+    }
   }
 
   .loss {
-    color: #ff4d4f;
-    font-weight: 600;
+    color: @danger-color;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    background: linear-gradient(135deg, rgba(246, 70, 93, 0.12) 0%, rgba(246, 70, 93, 0.06) 100%);
+    border-radius: 6px;
+
+    &::before {
+      content: '▼';
+      font-size: 8px;
+    }
   }
 
   // 移动端适配

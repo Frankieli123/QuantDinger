@@ -17,6 +17,7 @@ def register_routes(app: Flask):
     from app.routes.ai_chat import ai_chat_bp
     from app.routes.indicator import indicator_bp
     from app.routes.dashboard import dashboard_bp
+    from app.routes.settings import settings_bp
     
     app.register_blueprint(health_bp)
     app.register_blueprint(auth_bp, url_prefix='/api/user')  # 兼容前端 /api/user/login
@@ -29,4 +30,5 @@ def register_routes(app: Flask):
     app.register_blueprint(strategy_bp, url_prefix='/api')
     app.register_blueprint(credentials_bp, url_prefix='/api/credentials')
     app.register_blueprint(dashboard_bp, url_prefix='/api/dashboard')
+    app.register_blueprint(settings_bp, url_prefix='/api/settings')
 

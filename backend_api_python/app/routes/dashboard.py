@@ -32,6 +32,13 @@ def _safe_int(v: Any, default: int) -> int:
         return default
 
 
+def _safe_float(v: Any, default: float = 0.0) -> float:
+    try:
+        return float(v)
+    except Exception:
+        return default
+
+
 def _safe_json_loads(value: Any, default: Any) -> Any:
     if value is None:
         return default
@@ -94,6 +101,157 @@ def _calc_pnl_percent(entry_price: float, size: float, pnl: float, leverage: flo
         return float(pnl) / denom * 100.0 * float(mult)
     except Exception:
         return 0.0
+
+
+def _compute_performance_stats(trades: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Compute performance statistics from trade history.
+    Returns: {
+        total_trades, winning_trades, losing_trades, win_rate,
+        total_profit, total_loss, profit_factor,
+        avg_win, avg_loss, avg_trade,
+        max_win, max_loss, max_drawdown, max_drawdown_pct
+    }
+    """
+    total_trades = len(trades)
+    if total_trades == 0:
+        return {
+            "total_trades": 0,
+            "winning_trades": 0,
+            "losing_trades": 0,
+            "win_rate": 0.0,
+            "total_profit": 0.0,
+            "total_loss": 0.0,
+            "profit_factor": 0.0,
+            "avg_win": 0.0,
+            "avg_loss": 0.0,
+            "avg_trade": 0.0,
+            "max_win": 0.0,
+            "max_loss": 0.0,
+            "max_drawdown": 0.0,
+            "max_drawdown_pct": 0.0,
+            "best_day": 0.0,
+            "worst_day": 0.0,
+        }
+
+    profits = [_safe_float(t.get("profit"), 0.0) for t in trades]
+    wins = [p for p in profits if p > 0]
+    losses = [p for p in profits if p < 0]
+
+    winning_trades = len(wins)
+    losing_trades = len(losses)
+    win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0.0
+
+    total_profit = sum(wins) if wins else 0.0
+    total_loss = abs(sum(losses)) if losses else 0.0
+    profit_factor = (total_profit / total_loss) if total_loss > 0 else (total_profit if total_profit > 0 else 0.0)
+
+    avg_win = (total_profit / winning_trades) if winning_trades > 0 else 0.0
+    avg_loss = (total_loss / losing_trades) if losing_trades > 0 else 0.0
+    avg_trade = sum(profits) / total_trades if total_trades > 0 else 0.0
+
+    max_win = max(profits) if profits else 0.0
+    max_loss = min(profits) if profits else 0.0
+
+    # Calculate max drawdown from cumulative equity
+    cumulative = []
+    acc = 0.0
+    for p in profits:
+        acc += p
+        cumulative.append(acc)
+
+    peak = 0.0
+    max_drawdown = 0.0
+    for val in cumulative:
+        if val > peak:
+            peak = val
+        dd = peak - val
+        if dd > max_drawdown:
+            max_drawdown = dd
+
+    max_drawdown_pct = (max_drawdown / peak * 100) if peak > 0 else 0.0
+
+    # Best/worst day
+    day_profits: Dict[str, float] = {}
+    for t in trades:
+        ts = _safe_int(t.get("created_at"), 0)
+        if ts <= 0:
+            continue
+        day = time.strftime("%Y-%m-%d", time.localtime(ts))
+        profit = _safe_float(t.get("profit"), 0.0)
+        day_profits[day] = day_profits.get(day, 0.0) + profit
+
+    best_day = max(day_profits.values()) if day_profits else 0.0
+    worst_day = min(day_profits.values()) if day_profits else 0.0
+
+    return {
+        "total_trades": total_trades,
+        "winning_trades": winning_trades,
+        "losing_trades": losing_trades,
+        "win_rate": round(win_rate, 2),
+        "total_profit": round(total_profit, 2),
+        "total_loss": round(total_loss, 2),
+        "profit_factor": round(profit_factor, 2),
+        "avg_win": round(avg_win, 2),
+        "avg_loss": round(avg_loss, 2),
+        "avg_trade": round(avg_trade, 2),
+        "max_win": round(max_win, 2),
+        "max_loss": round(max_loss, 2),
+        "max_drawdown": round(max_drawdown, 2),
+        "max_drawdown_pct": round(max_drawdown_pct, 2),
+        "best_day": round(best_day, 2),
+        "worst_day": round(worst_day, 2),
+    }
+
+
+def _compute_strategy_stats(trades: List[Dict[str, Any]], strategies: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Compute per-strategy statistics.
+    Only includes strategies that still exist (not deleted).
+    """
+    # Build set of existing strategy IDs
+    existing_strategy_ids: set = set()
+    sid_to_name: Dict[int, str] = {}
+    sid_to_capital: Dict[int, float] = {}
+    for s in strategies:
+        sid = _safe_int(s.get("id"), 0)
+        if sid > 0:
+            existing_strategy_ids.add(sid)
+            sid_to_name[sid] = str(s.get("strategy_name") or f"Strategy_{sid}")
+            sid_to_capital[sid] = _safe_float(s.get("initial_capital"), 0.0)
+
+    # Group trades by strategy (only for existing strategies)
+    sid_to_trades: Dict[int, List[Dict[str, Any]]] = {}
+    for t in trades:
+        sid = _safe_int(t.get("strategy_id"), 0)
+        # Skip trades from deleted strategies
+        if sid not in existing_strategy_ids:
+            continue
+        if sid not in sid_to_trades:
+            sid_to_trades[sid] = []
+        sid_to_trades[sid].append(t)
+
+    result = []
+    for sid, strades in sid_to_trades.items():
+        stats = _compute_performance_stats(strades)
+        total_pnl = sum(_safe_float(t.get("profit"), 0.0) for t in strades)
+        capital = sid_to_capital.get(sid, 0.0)
+        roi = (total_pnl / capital * 100) if capital > 0 else 0.0
+
+        result.append({
+            "strategy_id": sid,
+            "strategy_name": sid_to_name.get(sid, f"Strategy_{sid}"),
+            "total_trades": stats["total_trades"],
+            "win_rate": stats["win_rate"],
+            "profit_factor": stats["profit_factor"],
+            "total_pnl": round(total_pnl, 2),
+            "roi": round(roi, 2),
+            "max_drawdown": stats["max_drawdown"],
+        })
+
+    # Sort by total PnL descending
+    result.sort(key=lambda x: x.get("total_pnl", 0), reverse=True)
+    return result
 
 
 @dashboard_bp.route("/summary", methods=["GET"])
@@ -183,11 +341,17 @@ def summary():
                 FROM qd_strategy_trades t
                 LEFT JOIN qd_strategies_trading s ON s.id = t.strategy_id
                 ORDER BY t.created_at DESC
-                    LIMIT 200
+                LIMIT 500
                 """
             )
             recent_trades = cur.fetchall() or []
             cur.close()
+
+        # Compute performance statistics
+        perf_stats = _compute_performance_stats(recent_trades)
+
+        # Compute per-strategy statistics
+        strategy_stats = _compute_strategy_stats(recent_trades, strategies)
 
         # Total equity/pnl (best-effort)
         total_initial_capital = 0.0
@@ -196,7 +360,10 @@ def summary():
                 total_initial_capital += float(s.get("initial_capital") or 0.0)
             except Exception:
                 pass
-        total_pnl = float(total_unrealized_pnl)
+
+        # Include realized PnL from trades
+        total_realized_pnl = sum(_safe_float(t.get("profit"), 0.0) for t in recent_trades)
+        total_pnl = float(total_unrealized_pnl + total_realized_pnl)
         total_equity = float(total_initial_capital + total_pnl)
 
         # Daily PnL chart (uses realized profit field if present, otherwise 0)
@@ -223,6 +390,80 @@ def summary():
             sid_to_unreal[sid] = float(sid_to_unreal.get(sid, 0.0) + float(p.get("unrealized_pnl") or 0.0))
         strategy_pnl_chart = [{"name": sid_to_name[sid], "value": float(val)} for sid, val in sid_to_unreal.items()]
 
+        # Monthly returns for heatmap
+        month_to_profit: Dict[str, float] = {}
+        for trow in recent_trades:
+            ts = _safe_int(trow.get("created_at"), 0)
+            if ts <= 0:
+                continue
+            month = time.strftime("%Y-%m", time.localtime(ts))
+            try:
+                p = float(trow.get("profit") or 0.0)
+            except Exception:
+                p = 0.0
+            month_to_profit[month] = month_to_profit.get(month, 0.0) + p
+        monthly_returns = [{"month": m, "profit": round(v, 2)} for m, v in sorted(month_to_profit.items())]
+
+        # Hourly distribution
+        hour_to_count: Dict[int, int] = {}
+        hour_to_profit: Dict[int, float] = {}
+        for trow in recent_trades:
+            ts = _safe_int(trow.get("created_at"), 0)
+            if ts <= 0:
+                continue
+            hour = int(time.strftime("%H", time.localtime(ts)))
+            hour_to_count[hour] = hour_to_count.get(hour, 0) + 1
+            hour_to_profit[hour] = hour_to_profit.get(hour, 0.0) + _safe_float(trow.get("profit"), 0.0)
+        hourly_distribution = [
+            {"hour": h, "count": hour_to_count.get(h, 0), "profit": round(hour_to_profit.get(h, 0.0), 2)}
+            for h in range(24)
+        ]
+
+        # Calendar data: organized by month for monthly calendar view
+        # Format: { "2024-01": { "days": { "01": 123.45, "02": -50.0, ... }, "total": 500.0 }, ... }
+        import calendar as cal_module
+        from datetime import datetime, timedelta
+
+        calendar_data: Dict[str, Dict[str, Any]] = {}
+        for d, p in day_to_profit.items():
+            try:
+                dt = datetime.strptime(d, "%Y-%m-%d")
+                month_key = dt.strftime("%Y-%m")
+                day_num = dt.strftime("%d")
+                if month_key not in calendar_data:
+                    # Get number of days in month
+                    year, month = int(dt.strftime("%Y")), int(dt.strftime("%m"))
+                    _, days_in_month = cal_module.monthrange(year, month)
+                    # Get first day of month (0=Monday, 6=Sunday)
+                    first_weekday = cal_module.monthrange(year, month)[0]
+                    calendar_data[month_key] = {
+                        "year": year,
+                        "month": month,
+                        "days_in_month": days_in_month,
+                        "first_weekday": first_weekday,  # 0=Mon, 6=Sun
+                        "days": {},
+                        "total": 0.0,
+                        "win_days": 0,
+                        "lose_days": 0,
+                    }
+                calendar_data[month_key]["days"][day_num] = round(p, 2)
+                calendar_data[month_key]["total"] = round(calendar_data[month_key]["total"] + p, 2)
+                if p > 0:
+                    calendar_data[month_key]["win_days"] += 1
+                elif p < 0:
+                    calendar_data[month_key]["lose_days"] += 1
+            except Exception:
+                pass
+
+        # Convert to sorted list for frontend
+        calendar_months = []
+        for month_key in sorted(calendar_data.keys(), reverse=True):
+            data = calendar_data[month_key]
+            calendar_months.append({
+                "month_key": month_key,
+                **data
+            })
+
         return jsonify(
             {
                 "code": 1,
@@ -230,11 +471,22 @@ def summary():
                 "data": {
                     "ai_strategy_count": int(ai_enabled_strategy_count),
                     "indicator_strategy_count": int(indicator_strategy_count),
-                    "total_equity": float(total_equity),
-                    "total_pnl": float(total_pnl),
+                    "total_equity": round(total_equity, 2),
+                    "total_pnl": round(total_pnl, 2),
+                    "total_realized_pnl": round(total_realized_pnl, 2),
+                    "total_unrealized_pnl": round(total_unrealized_pnl, 2),
+                    # Performance KPIs
+                    "performance": perf_stats,
+                    # Strategy-level stats
+                    "strategy_stats": strategy_stats,
+                    # Chart data
                     "daily_pnl_chart": daily_pnl_chart,
                     "strategy_pnl_chart": strategy_pnl_chart,
-                    "recent_trades": recent_trades,
+                    "monthly_returns": monthly_returns,
+                    "hourly_distribution": hourly_distribution,
+                    "calendar_months": calendar_months,  # Monthly calendar data
+                    # Lists
+                    "recent_trades": recent_trades[:100],  # Limit for frontend
                     "current_positions": current_positions,
                 },
             }
@@ -383,4 +635,3 @@ def delete_pending_order(order_id: int):
     except Exception as e:
         logger.error(f"dashboard delete pendingOrders failed: {e}", exc_info=True)
         return jsonify({"code": 0, "msg": str(e), "data": None}), 500
-

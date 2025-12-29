@@ -26,3 +26,8 @@ def health_check():
         'timestamp': datetime.now().isoformat()
     })
 
+
+@health_bp.route('/api/health', methods=['GET'])
+def api_health_check():
+    """兼容路径：用于容器健康检查/反代探针等场景。"""
+    return health_check()
