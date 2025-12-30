@@ -84,18 +84,44 @@ def get_public_config():
 @market_bp.route('/types', methods=['GET'])
 def get_market_types():
     """Return supported market types for the add-watchlist modal."""
+    desired_order = ['USStock', 'Crypto', 'Forex', 'Futures', 'HShare', 'AShare']
+    order_rank = {v: i for i, v in enumerate(desired_order)}
+
+    def _normalize_item(x):
+        # Expected: {value: 'USStock', i18nKey: '...'}
+        if isinstance(x, dict):
+            v = (x.get('value') or '').strip()
+            if not v:
+                return None
+            return {
+                'value': v,
+                'i18nKey': x.get('i18nKey') or f'dashboard.analysis.market.{v}'
+            }
+        if isinstance(x, str):
+            v = x.strip()
+            if not v:
+                return None
+            return {'value': v, 'i18nKey': f'dashboard.analysis.market.{v}'}
+        return None
+
+    def _sort_items(items):
+        # Keep unknown market types after known ones, stable by original order.
+        out = []
+        for it in items or []:
+            norm = _normalize_item(it)
+            if norm:
+                out.append(norm)
+        out.sort(key=lambda it: (order_rank.get(it['value'], 10_000)))
+        return out
+
     cfg = load_addon_config()
     data = (cfg.get('market', {}) or {}).get('types')
-    if not isinstance(data, list) or not data:
-        # Order: USStock > Crypto > Forex > Futures > HShare > AShare
-        data = [
-            {'value': 'USStock', 'i18nKey': 'dashboard.analysis.market.USStock'},
-            {'value': 'Crypto', 'i18nKey': 'dashboard.analysis.market.Crypto'},
-            {'value': 'Forex', 'i18nKey': 'dashboard.analysis.market.Forex'},
-            {'value': 'Futures', 'i18nKey': 'dashboard.analysis.market.Futures'},
-            {'value': 'HShare', 'i18nKey': 'dashboard.analysis.market.HShare'},
-            {'value': 'AShare', 'i18nKey': 'dashboard.analysis.market.AShare'}
-        ]
+
+    # Normalize & force desired order (even if config overrides the list order).
+    if isinstance(data, list) and data:
+        data = _sort_items(data)
+    else:
+        data = _sort_items(desired_order)
     return jsonify({'code': 1, 'msg': 'success', 'data': data})
 
 
