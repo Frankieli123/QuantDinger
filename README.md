@@ -37,7 +37,6 @@
   </p>
 
   <p align="center">
-    <a href="https://t.me/worldinbroker"><img src="https://img.shields.io/badge/Telegram-Join%20Chat-26A5E4?style=for-the-badge&logo=telegram" alt="Telegram"></a>
     <a href="https://t.me/+ULKYtlLEE9M4ZWZl"><img src="https://img.shields.io/badge/Telegram-QuantDinger%20Group-26A5E4?style=for-the-badge&logo=telegram" alt="Telegram Group"></a>
     <a href="https://discord.gg/cn6HVE2KC"><img src="https://img.shields.io/badge/Discord-Join%20Server-5865F2?style=for-the-badge&logo=discord" alt="Discord"></a>
     <a href="https://x.com/HenryCryption"><img src="https://img.shields.io/badge/X-Follow%20Us-000000?style=for-the-badge&logo=x" alt="X"></a>
@@ -592,7 +591,7 @@ Licensed under the **Apache License 2.0**. See `LICENSE`.
 
 Join our global community for strategy sharing and technical support:
 
-- **Telegram (Official)**: [t.me/worldinbroker](https://t.me/worldinbroker)
+- **Telegram (Group)**: [Join QuantDinger Telegram Group](https://t.me/+ULKYtlLEE9M4ZWZl)
 - **Discord**: [Join Server](https://discord.gg/cn6HVE2KC)
 - **YouTube**: [@quantdinger](https://youtube.com/@quantdinger)
 - **Email**: [brokermr810@gmail.com](mailto:brokermr810@gmail.com)
@@ -626,7 +625,7 @@ We offer professional services to help you get the most out of QuantDinger:
 
 **Interested?** Contact us via:
 - 📧 Email: [brokermr810@gmail.com](mailto:brokermr810@gmail.com)
-- 💬 Telegram: [@worldinbroker](https://t.me/worldinbroker)
+- 💬 Telegram: [QuantDinger Group](https://t.me/+ULKYtlLEE9M4ZWZl)
 
 ---
 

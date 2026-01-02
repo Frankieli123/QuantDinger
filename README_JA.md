@@ -37,7 +37,6 @@
   </p>
 
   <p align="center">
-    <a href="https://t.me/worldinbroker"><img src="https://img.shields.io/badge/Telegram-Join%20Chat-26A5E4?style=for-the-badge&logo=telegram" alt="Telegram"></a>
     <a href="https://t.me/+ULKYtlLEE9M4ZWZl"><img src="https://img.shields.io/badge/Telegram-QuantDinger%20Group-26A5E4?style=for-the-badge&logo=telegram" alt="Telegram Group"></a>
     <a href="https://discord.gg/cn6HVE2KC"><img src="https://img.shields.io/badge/Discord-Join%20Server-5865F2?style=for-the-badge&logo=discord" alt="Discord"></a>
     <a href="https://x.com/HenryCryption"><img src="https://img.shields.io/badge/X-Follow%20Us-000000?style=for-the-badge&logo=x" alt="X"></a>
@@ -416,7 +415,7 @@ npm run serve
 
 戦略の共有や技術サポートのために、グローバルコミュニティに参加しましょう：
 
-- **Telegram (公式)**: [t.me/worldinbroker](https://t.me/worldinbroker)
+- **Telegram (Group)**: [Join QuantDinger Telegram Group](https://t.me/+ULKYtlLEE9M4ZWZl)
 - **Discord**: [サーバーに参加](https://discord.gg/cn6HVE2KC)
 - **YouTube**: [@quantdinger](https://youtube.com/@quantdinger)
 - **Email**: [brokermr810@gmail.com](mailto:brokermr810@gmail.com)
@@ -450,7 +449,7 @@ QuantDingerを最大限に活用するためのプロフェッショナルサー
 
 **ご興味がありますか？** 以下よりお問い合わせください：
 - 📧 Email: [brokermr810@gmail.com](mailto:brokermr810@gmail.com)
-- 💬 Telegram: [@worldinbroker](https://t.me/worldinbroker)
+- 💬 Telegram: [QuantDinger Group](https://t.me/+ULKYtlLEE9M4ZWZl)
 
 ---
 

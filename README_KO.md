@@ -37,7 +37,6 @@
   </p>
 
   <p align="center">
-    <a href="https://t.me/worldinbroker"><img src="https://img.shields.io/badge/Telegram-Join%20Chat-26A5E4?style=for-the-badge&logo=telegram" alt="Telegram"></a>
     <a href="https://t.me/+ULKYtlLEE9M4ZWZl"><img src="https://img.shields.io/badge/Telegram-QuantDinger%20Group-26A5E4?style=for-the-badge&logo=telegram" alt="Telegram Group"></a>
     <a href="https://discord.gg/cn6HVE2KC"><img src="https://img.shields.io/badge/Discord-Join%20Server-5865F2?style=for-the-badge&logo=discord" alt="Discord"></a>
     <a href="https://x.com/HenryCryption"><img src="https://img.shields.io/badge/X-Follow%20Us-000000?style=for-the-badge&logo=x" alt="X"></a>
@@ -429,7 +428,7 @@ npm run serve
 
 전략 공유 및 기술 지원을 위해 글로벌 커뮤니티에 참여하십시오:
 
-- **Telegram (공식)**: [t.me/worldinbroker](https://t.me/worldinbroker)
+- **Telegram (Group)**: [Join QuantDinger Telegram Group](https://t.me/+ULKYtlLEE9M4ZWZl)
 - **Discord**: [서버 참여](https://discord.gg/cn6HVE2KC)
 - **YouTube**: [@quantdinger](https://youtube.com/@quantdinger)
 - **Email**: [brokermr810@gmail.com](mailto:brokermr810@gmail.com)
@@ -463,7 +462,7 @@ QuantDinger를 최대한 활용할 수 있도록 전문 서비스를 제공합�
 
 **관심이 있으십니까?** 다음을 통해 문의하십시오:
 - 📧 Email: [brokermr810@gmail.com](mailto:brokermr810@gmail.com)
-- 💬 Telegram: [@worldinbroker](https://t.me/worldinbroker)
+- 💬 Telegram: [QuantDinger Group](https://t.me/+ULKYtlLEE9M4ZWZl)
 
 ---
 
