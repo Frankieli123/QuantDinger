@@ -79,8 +79,8 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '16'
-          # Use Node.js 16 as per README.md requirements.
+          node-version: '20'
+          # Use Node.js 20 to meet dependency requirements (commander@14.0.0 requires Node >= 20)
 
       - name: Install dependencies
         working-directory: ./quantdinger_vue
