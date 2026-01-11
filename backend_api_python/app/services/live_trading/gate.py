@@ -134,6 +134,8 @@ class GateSpotClient(_GateBase):
             status = str(last.get("status") or "")
             filled = 0.0
             avg_price = 0.0
+            fee = 0.0
+            fee_ccy = ""
             try:
                 filled = float(last.get("filled_amount") or 0.0)
             except Exception:
@@ -144,12 +146,18 @@ class GateSpotClient(_GateBase):
                     avg_price = filled_total / filled
             except Exception:
                 avg_price = 0.0
+            # Extract fee from Gate API
+            try:
+                fee = abs(float(last.get("fee") or 0.0))
+            except Exception:
+                fee = 0.0
+            fee_ccy = str(last.get("fee_currency") or "").strip()
             if filled > 0 and avg_price > 0:
-                return {"filled": filled, "avg_price": avg_price, "status": status, "order": last}
+                return {"filled": filled, "avg_price": avg_price, "fee": fee, "fee_ccy": fee_ccy, "status": status, "order": last}
             if status.lower() in ("closed", "cancelled", "canceled"):
-                return {"filled": filled, "avg_price": avg_price, "status": status, "order": last}
+                return {"filled": filled, "avg_price": avg_price, "fee": fee, "fee_ccy": fee_ccy, "status": status, "order": last}
             if time.time() >= end_ts:
-                return {"filled": filled, "avg_price": avg_price, "status": status, "order": last}
+                return {"filled": filled, "avg_price": avg_price, "fee": fee, "fee_ccy": fee_ccy, "status": status, "order": last}
             time.sleep(float(poll_interval_sec or 0.5))
 
 
@@ -321,6 +329,8 @@ class GateUsdtFuturesClient(_GateBase):
             status = str(last.get("status") or "")
             filled = 0.0
             avg_price = 0.0
+            fee = 0.0
+            fee_ccy = ""
             try:
                 # Gate futures often returns "filled_size" in contracts.
                 filled_ct = abs(float(last.get("filled_size") or last.get("filledSize") or 0.0))
@@ -331,12 +341,20 @@ class GateUsdtFuturesClient(_GateBase):
                 avg_price = float(last.get("fill_price") or last.get("fillPrice") or last.get("price") or 0.0)
             except Exception:
                 avg_price = 0.0
+            # Extract fee from Gate Futures API
+            try:
+                fee = abs(float(last.get("fee") or 0.0))
+            except Exception:
+                fee = 0.0
+            # Gate USDT futures fees are in USDT
+            if fee > 0:
+                fee_ccy = "USDT"
             if filled > 0 and avg_price > 0:
-                return {"filled": filled, "avg_price": avg_price, "status": status, "order": last}
+                return {"filled": filled, "avg_price": avg_price, "fee": fee, "fee_ccy": fee_ccy, "status": status, "order": last}
             if str(status).lower() in ("finished", "cancelled", "canceled"):
-                return {"filled": filled, "avg_price": avg_price, "status": status, "order": last}
+                return {"filled": filled, "avg_price": avg_price, "fee": fee, "fee_ccy": fee_ccy, "status": status, "order": last}
             if time.time() >= end_ts:
-                return {"filled": filled, "avg_price": avg_price, "status": status, "order": last}
+                return {"filled": filled, "avg_price": avg_price, "fee": fee, "fee_ccy": fee_ccy, "status": status, "order": last}
             time.sleep(float(poll_interval_sec or 0.5))
 
 

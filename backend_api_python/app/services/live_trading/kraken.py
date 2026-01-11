@@ -153,6 +153,8 @@ class KrakenClient(BaseRestClient):
             status = str(last.get("status") or "")
             filled = 0.0
             avg_price = 0.0
+            fee = 0.0
+            fee_ccy = ""
             try:
                 filled = float(last.get("vol_exec") or 0.0)
             except Exception:
@@ -164,12 +166,20 @@ class KrakenClient(BaseRestClient):
                     avg_price = cost / filled
             except Exception:
                 avg_price = 0.0
+            # Extract fee from Kraken API
+            try:
+                fee = abs(float(last.get("fee") or 0.0))
+            except Exception:
+                fee = 0.0
+            # Kraken fees are typically in the quote currency (e.g., USD)
+            if fee > 0:
+                fee_ccy = "USD"
             if filled > 0 and avg_price > 0:
-                return {"filled": filled, "avg_price": avg_price, "status": status, "order": last}
+                return {"filled": filled, "avg_price": avg_price, "fee": fee, "fee_ccy": fee_ccy, "status": status, "order": last}
             if status.lower() in ("closed", "canceled", "cancelled", "expired"):
-                return {"filled": filled, "avg_price": avg_price, "status": status, "order": last}
+                return {"filled": filled, "avg_price": avg_price, "fee": fee, "fee_ccy": fee_ccy, "status": status, "order": last}
             if time.time() >= end_ts:
-                return {"filled": filled, "avg_price": avg_price, "status": status, "order": last}
+                return {"filled": filled, "avg_price": avg_price, "fee": fee, "fee_ccy": fee_ccy, "status": status, "order": last}
             time.sleep(float(poll_interval_sec or 0.5))
 
 

@@ -170,6 +170,8 @@ class CoinbaseExchangeClient(BaseRestClient):
             status = str(last.get("status") or "")
             filled = 0.0
             avg_price = 0.0
+            fee = 0.0
+            fee_ccy = ""
             try:
                 filled = float(last.get("filled_size") or 0.0)
             except Exception:
@@ -180,12 +182,20 @@ class CoinbaseExchangeClient(BaseRestClient):
                     avg_price = executed_value / filled
             except Exception:
                 avg_price = 0.0
+            # Extract fee from fill_fees (Coinbase API field)
+            try:
+                fee = abs(float(last.get("fill_fees") or 0.0))
+            except Exception:
+                fee = 0.0
+            # Coinbase fees are typically in the quote currency (e.g., USD)
+            if fee > 0:
+                fee_ccy = "USD"
             if filled > 0 and avg_price > 0:
-                return {"filled": filled, "avg_price": avg_price, "status": status, "order": last}
+                return {"filled": filled, "avg_price": avg_price, "fee": fee, "fee_ccy": fee_ccy, "status": status, "order": last}
             if status.lower() in ("done", "rejected", "canceled", "cancelled"):
-                return {"filled": filled, "avg_price": avg_price, "status": status, "order": last}
+                return {"filled": filled, "avg_price": avg_price, "fee": fee, "fee_ccy": fee_ccy, "status": status, "order": last}
             if time.time() >= end_ts:
-                return {"filled": filled, "avg_price": avg_price, "status": status, "order": last}
+                return {"filled": filled, "avg_price": avg_price, "fee": fee, "fee_ccy": fee_ccy, "status": status, "order": last}
             time.sleep(float(poll_interval_sec or 0.5))
 
 

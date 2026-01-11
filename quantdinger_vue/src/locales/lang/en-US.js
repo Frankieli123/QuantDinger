@@ -1911,21 +1911,20 @@ const locale = {
   'settings.copySuccess': 'Copied',
   'settings.copyFailed': 'Copy failed',
   // Settings groups
-  'settings.group.auth': 'Authentication',
+  // Settings groups (ordered by backend order)
   'settings.group.server': 'Server Configuration',
-  'settings.group.worker': 'Order Worker',
-  'settings.group.notification': 'Signal Notification',
-  'settings.group.smtp': 'Email SMTP',
-  'settings.group.twilio': 'Twilio SMS',
+  'settings.group.auth': 'Security & Authentication',
+  'settings.group.ai': 'AI / LLM Configuration',
+  'settings.group.trading': 'Live Trading',
   'settings.group.strategy': 'Strategy Execution',
-  'settings.group.proxy': 'Proxy Configuration',
-  'settings.group.app': 'Application',
-  'settings.group.ai': 'AI/LLM Configuration',
-  'settings.group.market': 'Market Presets',
   'settings.group.data_source': 'Data Sources',
-  'settings.group.search': 'Search Configuration',
-  'settings.group.agent_memory': 'Memory/Reflection',
-  'settings.group.reflection_worker': 'Auto Reflection Verification Worker',
+  'settings.group.notification': 'Notifications',
+  'settings.group.email': 'Email (SMTP)',
+  'settings.group.sms': 'SMS (Twilio)',
+  'settings.group.agent': 'AI Agent',
+  'settings.group.network': 'Network & Proxy',
+  'settings.group.search': 'Web Search',
+  'settings.group.app': 'Application',
   // Settings fields - Auth
   'settings.field.SECRET_KEY': 'Secret Key',
   'settings.field.ADMIN_USER': 'Admin Username',
@@ -1937,6 +1936,10 @@ const locale = {
   // Settings fields - Worker
   'settings.field.ENABLE_PENDING_ORDER_WORKER': 'Enable Order Worker',
   'settings.field.PENDING_ORDER_STALE_SEC': 'Order Stale Timeout (sec)',
+  // Settings fields - Trading
+  'settings.field.ORDER_MODE': 'Order Mode',
+  'settings.field.MAKER_WAIT_SEC': 'Limit Order Wait Time (sec)',
+  'settings.field.MAKER_OFFSET_BPS': 'Limit Order Price Offset (bps)',
   // Settings fields - Notification
   'settings.field.SIGNAL_WEBHOOK_URL': 'Webhook URL',
   'settings.field.SIGNAL_WEBHOOK_TOKEN': 'Webhook Token',
@@ -2014,7 +2017,13 @@ const locale = {
   'settings.field.SEARCH_GOOGLE_API_KEY': 'Google API Key',
   'settings.field.SEARCH_GOOGLE_CX': 'Google CX',
   'settings.field.SEARCH_BING_API_KEY': 'Bing API Key',
-  'settings.field.INTERNAL_API_KEY': 'Internal API Key'
+  'settings.field.INTERNAL_API_KEY': 'Internal API Key',
+
+  // Settings descriptions (config item descriptions)
+  // Note: These are optional since backend already provides English descriptions
+  'settings.desc.ORDER_MODE': 'maker: Limit order first (lower fees), market: Market order (instant fill)',
+  'settings.desc.MAKER_WAIT_SEC': 'Wait time for limit order fill before switching to market order',
+  'settings.desc.MAKER_OFFSET_BPS': 'Price offset in basis points. Buy: price*(1-offset), Sell: price*(1+offset)'
 }
 
 export default {

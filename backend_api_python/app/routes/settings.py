@@ -14,155 +14,687 @@ settings_bp = Blueprint('settings', __name__)
 # .env 文件路径
 ENV_FILE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.env')
 
-# 配置项定义（分组）- 完整对照 env.example
+# 配置项定义（分组）- 按功能模块划分，每个配置项包含描述
 CONFIG_SCHEMA = {
-    'auth': {
-        'title': '认证配置',
-        'items': [
-            {'key': 'SECRET_KEY', 'label': 'Secret Key', 'type': 'password', 'default': 'quantdinger-secret-key-change-me'},
-            {'key': 'ADMIN_USER', 'label': '管理员用户名', 'type': 'text', 'default': 'quantdinger'},
-            {'key': 'ADMIN_PASSWORD', 'label': '管理员密码', 'type': 'password', 'default': '123456'},
-        ]
-    },
+    # ==================== 1. 服务配置 ====================
     'server': {
-        'title': '服务器配置',
+        'title': 'Server Configuration',
+        'icon': 'cloud-server',
+        'order': 1,
         'items': [
-            {'key': 'PYTHON_API_HOST', 'label': '监听地址', 'type': 'text', 'default': '0.0.0.0'},
-            {'key': 'PYTHON_API_PORT', 'label': '端口', 'type': 'number', 'default': '5000'},
-            {'key': 'PYTHON_API_DEBUG', 'label': '调试模式', 'type': 'boolean', 'default': 'False'},
+            {
+                'key': 'PYTHON_API_HOST',
+                'label': 'Listen Address',
+                'type': 'text',
+                'default': '0.0.0.0',
+                'description': 'Server listen address. 0.0.0.0 allows external access, 127.0.0.1 for local only'
+            },
+            {
+                'key': 'PYTHON_API_PORT',
+                'label': 'Port',
+                'type': 'number',
+                'default': '5000',
+                'description': 'Server listen port, default 5000'
+            },
+            {
+                'key': 'PYTHON_API_DEBUG',
+                'label': 'Debug Mode',
+                'type': 'boolean',
+                'default': 'False',
+                'description': 'Enable debug mode for development. Disable in production'
+            },
         ]
     },
-    'worker': {
-        'title': '订单处理配置',
+
+    # ==================== 2. 安全认证 ====================
+    'auth': {
+        'title': 'Security & Authentication',
+        'icon': 'lock',
+        'order': 2,
         'items': [
-            {'key': 'ENABLE_PENDING_ORDER_WORKER', 'label': '启用订单处理Worker', 'type': 'boolean', 'default': 'True'},
-            {'key': 'PENDING_ORDER_STALE_SEC', 'label': '订单超时时间(秒)', 'type': 'number', 'default': '90'},
+            {
+                'key': 'SECRET_KEY',
+                'label': 'Secret Key',
+                'type': 'password',
+                'default': 'quantdinger-secret-key-change-me',
+                'description': 'JWT signing secret key. MUST change in production for security'
+            },
+            {
+                'key': 'ADMIN_USER',
+                'label': 'Admin Username',
+                'type': 'text',
+                'default': 'quantdinger',
+                'description': 'Administrator login username'
+            },
+            {
+                'key': 'ADMIN_PASSWORD',
+                'label': 'Admin Password',
+                'type': 'password',
+                'default': '123456',
+                'description': 'Administrator login password. MUST change in production'
+            },
         ]
     },
-    'notification': {
-        'title': '信号通知配置',
-        'items': [
-            {'key': 'SIGNAL_WEBHOOK_URL', 'label': 'Webhook URL', 'type': 'text', 'required': False},
-            {'key': 'SIGNAL_WEBHOOK_TOKEN', 'label': 'Webhook Token', 'type': 'password', 'required': False},
-            {'key': 'SIGNAL_NOTIFY_TIMEOUT_SEC', 'label': '通知超时(秒)', 'type': 'number', 'default': '6'},
-            {'key': 'TELEGRAM_BOT_TOKEN', 'label': 'Telegram Bot Token', 'type': 'password', 'required': False, 'link': 'https://t.me/BotFather', 'link_text': 'settings.link.createBot'},
-        ]
-    },
-    'smtp': {
-        'title': '邮件SMTP配置',
-        'items': [
-            {'key': 'SMTP_HOST', 'label': 'SMTP服务器', 'type': 'text', 'required': False},
-            {'key': 'SMTP_PORT', 'label': 'SMTP端口', 'type': 'number', 'default': '587'},
-            {'key': 'SMTP_USER', 'label': 'SMTP用户名', 'type': 'text', 'required': False},
-            {'key': 'SMTP_PASSWORD', 'label': 'SMTP密码', 'type': 'password', 'required': False},
-            {'key': 'SMTP_FROM', 'label': '发件人地址', 'type': 'text', 'required': False},
-            {'key': 'SMTP_USE_TLS', 'label': '使用TLS', 'type': 'boolean', 'default': 'True'},
-            {'key': 'SMTP_USE_SSL', 'label': '使用SSL', 'type': 'boolean', 'default': 'False'},
-        ]
-    },
-    'twilio': {
-        'title': 'Twilio短信配置',
-        'items': [
-            {'key': 'TWILIO_ACCOUNT_SID', 'label': 'Account SID', 'type': 'password', 'required': False, 'link': 'https://console.twilio.com/', 'link_text': 'settings.link.getApi'},
-            {'key': 'TWILIO_AUTH_TOKEN', 'label': 'Auth Token', 'type': 'password', 'required': False},
-            {'key': 'TWILIO_FROM_NUMBER', 'label': '发送号码', 'type': 'text', 'required': False},
-        ]
-    },
-    'strategy': {
-        'title': '策略执行配置',
-        'items': [
-            {'key': 'DISABLE_RESTORE_RUNNING_STRATEGIES', 'label': '禁用自动恢复策略', 'type': 'boolean', 'default': 'False'},
-            {'key': 'STRATEGY_TICK_INTERVAL_SEC', 'label': '策略Tick间隔(秒)', 'type': 'number', 'default': '10'},
-            {'key': 'PRICE_CACHE_TTL_SEC', 'label': '价格缓存TTL(秒)', 'type': 'number', 'default': '10'},
-        ]
-    },
-    'proxy': {
-        'title': '代理配置',
-        'items': [
-            {'key': 'PROXY_PORT', 'label': '代理端口', 'type': 'text', 'required': False},
-            {'key': 'PROXY_HOST', 'label': '代理主机', 'type': 'text', 'default': '127.0.0.1'},
-            {'key': 'PROXY_SCHEME', 'label': '代理协议', 'type': 'select', 'options': ['socks5h', 'socks5', 'http', 'https'], 'default': 'socks5h'},
-            {'key': 'PROXY_URL', 'label': '完整代理URL', 'type': 'text', 'required': False},
-        ]
-    },
-    'app': {
-        'title': '应用配置',
-        'items': [
-            {'key': 'CORS_ORIGINS', 'label': 'CORS来源', 'type': 'text', 'default': '*'},
-            {'key': 'RATE_LIMIT', 'label': '速率限制(每分钟)', 'type': 'number', 'default': '100'},
-            {'key': 'ENABLE_CACHE', 'label': '启用缓存', 'type': 'boolean', 'default': 'False'},
-            {'key': 'ENABLE_REQUEST_LOG', 'label': '启用请求日志', 'type': 'boolean', 'default': 'True'},
-            {'key': 'ENABLE_AI_ANALYSIS', 'label': '启用AI分析', 'type': 'boolean', 'default': 'True'},
-        ]
-    },
-    'agent_memory': {
-        'title': '记忆/反思配置',
-        'items': [
-            {'key': 'ENABLE_AGENT_MEMORY', 'label': '启用Agent记忆', 'type': 'boolean', 'default': 'True'},
-            {'key': 'AGENT_MEMORY_ENABLE_VECTOR', 'label': '启用向量检索(本地)', 'type': 'boolean', 'default': 'True'},
-            {'key': 'AGENT_MEMORY_EMBEDDING_DIM', 'label': 'Embedding维度', 'type': 'number', 'default': '256'},
-            {'key': 'AGENT_MEMORY_TOP_K', 'label': '召回数量TopK', 'type': 'number', 'default': '5'},
-            {'key': 'AGENT_MEMORY_CANDIDATE_LIMIT', 'label': '候选窗口大小', 'type': 'number', 'default': '500'},
-            {'key': 'AGENT_MEMORY_HALF_LIFE_DAYS', 'label': '时间衰减半衰期(天)', 'type': 'number', 'default': '30'},
-            {'key': 'AGENT_MEMORY_W_SIM', 'label': '相似度权重', 'type': 'number', 'default': '0.75'},
-            {'key': 'AGENT_MEMORY_W_RECENCY', 'label': '时间权重', 'type': 'number', 'default': '0.20'},
-            {'key': 'AGENT_MEMORY_W_RETURNS', 'label': '收益权重', 'type': 'number', 'default': '0.05'},
-        ]
-    },
-    'reflection_worker': {
-        'title': '自动反思验证Worker',
-        'items': [
-            {'key': 'ENABLE_REFLECTION_WORKER', 'label': '启用自动验证', 'type': 'boolean', 'default': 'False'},
-            {'key': 'REFLECTION_WORKER_INTERVAL_SEC', 'label': '验证周期间隔(秒)', 'type': 'number', 'default': '86400'},
-        ]
-    },
+
+    # ==================== 3. AI/LLM 配置 ====================
     'ai': {
-        'title': 'AI/LLM配置',
+        'title': 'AI / LLM Configuration',
+        'icon': 'robot',
+        'order': 3,
         'items': [
-            {'key': 'OPENROUTER_API_KEY', 'label': 'OpenRouter API Key', 'type': 'password', 'required': False, 'link': 'https://openrouter.ai/keys', 'link_text': 'settings.link.getApiKey'},
-            {'key': 'OPENROUTER_API_URL', 'label': 'OpenRouter API URL', 'type': 'text', 'default': 'https://openrouter.ai/api/v1/chat/completions'},
-            {'key': 'OPENROUTER_MODEL', 'label': '默认模型', 'type': 'text', 'default': 'openai/gpt-4o', 'link': 'https://openrouter.ai/models', 'link_text': 'settings.link.viewModels'},
-            {'key': 'OPENROUTER_TEMPERATURE', 'label': 'Temperature', 'type': 'number', 'default': '0.7'},
-            {'key': 'OPENROUTER_MAX_TOKENS', 'label': 'Max Tokens', 'type': 'number', 'default': '4000'},
-            {'key': 'OPENROUTER_TIMEOUT', 'label': '超时时间(秒)', 'type': 'number', 'default': '300'},
-            {'key': 'OPENROUTER_CONNECT_TIMEOUT', 'label': '连接超时(秒)', 'type': 'number', 'default': '30'},
-            {'key': 'AI_MODELS_JSON', 'label': '模型列表(JSON)', 'type': 'text', 'default': '{}', 'required': False},
+            {
+                'key': 'OPENROUTER_API_KEY',
+                'label': 'OpenRouter API Key',
+                'type': 'password',
+                'required': False,
+                'link': 'https://openrouter.ai/keys',
+                'link_text': 'settings.link.getApiKey',
+                'description': 'OpenRouter API key for AI model access. Supports multiple LLM providers'
+            },
+            {
+                'key': 'OPENROUTER_API_URL',
+                'label': 'OpenRouter API URL',
+                'type': 'text',
+                'default': 'https://openrouter.ai/api/v1/chat/completions',
+                'description': 'OpenRouter API endpoint URL'
+            },
+            {
+                'key': 'OPENROUTER_MODEL',
+                'label': 'Default Model',
+                'type': 'text',
+                'default': 'openai/gpt-4o',
+                'link': 'https://openrouter.ai/models',
+                'link_text': 'settings.link.viewModels',
+                'description': 'Default LLM model ID, e.g. openai/gpt-4o, anthropic/claude-3.5-sonnet'
+            },
+            {
+                'key': 'OPENROUTER_TEMPERATURE',
+                'label': 'Temperature',
+                'type': 'number',
+                'default': '0.7',
+                'description': 'Model creativity (0-1). Lower = more deterministic, Higher = more creative'
+            },
+            {
+                'key': 'OPENROUTER_MAX_TOKENS',
+                'label': 'Max Tokens',
+                'type': 'number',
+                'default': '4000',
+                'description': 'Maximum output tokens per request'
+            },
+            {
+                'key': 'OPENROUTER_TIMEOUT',
+                'label': 'Request Timeout (sec)',
+                'type': 'number',
+                'default': '300',
+                'description': 'API request timeout in seconds'
+            },
+            {
+                'key': 'OPENROUTER_CONNECT_TIMEOUT',
+                'label': 'Connect Timeout (sec)',
+                'type': 'number',
+                'default': '30',
+                'description': 'Connection establishment timeout in seconds'
+            },
+            {
+                'key': 'AI_MODELS_JSON',
+                'label': 'Custom Models (JSON)',
+                'type': 'text',
+                'default': '{}',
+                'required': False,
+                'description': 'Custom model list in JSON format for model selector'
+            },
         ]
     },
-    'market': {
-        'title': '市场预设',
+
+    # ==================== 4. 实盘交易 ====================
+    'trading': {
+        'title': 'Live Trading',
+        'icon': 'stock',
+        'order': 4,
         'items': [
-            {'key': 'MARKET_TYPES_JSON', 'label': '市场类型(JSON)', 'type': 'text', 'default': '[]', 'required': False},
-            {'key': 'TRADING_SUPPORTED_SYMBOLS_JSON', 'label': '支持的交易对(JSON)', 'type': 'text', 'default': '[]', 'required': False},
+            {
+                'key': 'ENABLE_PENDING_ORDER_WORKER',
+                'label': 'Enable Order Worker',
+                'type': 'boolean',
+                'default': 'True',
+                'description': 'Enable background order processing worker for live trading'
+            },
+            {
+                'key': 'PENDING_ORDER_STALE_SEC',
+                'label': 'Order Stale Timeout (sec)',
+                'type': 'number',
+                'default': '90',
+                'description': 'Mark pending order as stale after this many seconds'
+            },
+            {
+                'key': 'ORDER_MODE',
+                'label': 'Order Execution Mode',
+                'type': 'select',
+                'options': ['maker', 'market'],
+                'default': 'maker',
+                'description': 'maker: Limit order first (lower fees), market: Market order (instant fill)'
+            },
+            {
+                'key': 'MAKER_WAIT_SEC',
+                'label': 'Limit Order Wait (sec)',
+                'type': 'number',
+                'default': '10',
+                'description': 'Wait time for limit order fill before switching to market order'
+            },
+            {
+                'key': 'MAKER_OFFSET_BPS',
+                'label': 'Limit Order Offset (bps)',
+                'type': 'number',
+                'default': '2',
+                'description': 'Price offset in basis points (1bps=0.01%). Buy: price*(1-offset), Sell: price*(1+offset)'
+            },
         ]
     },
+
+    # ==================== 5. 策略执行 ====================
+    'strategy': {
+        'title': 'Strategy Execution',
+        'icon': 'fund',
+        'order': 5,
+        'items': [
+            {
+                'key': 'DISABLE_RESTORE_RUNNING_STRATEGIES',
+                'label': 'Disable Auto Restore',
+                'type': 'boolean',
+                'default': 'False',
+                'description': 'Disable automatic restore of running strategies on server restart'
+            },
+            {
+                'key': 'STRATEGY_TICK_INTERVAL_SEC',
+                'label': 'Tick Interval (sec)',
+                'type': 'number',
+                'default': '10',
+                'description': 'Strategy main loop tick interval in seconds'
+            },
+            {
+                'key': 'PRICE_CACHE_TTL_SEC',
+                'label': 'Price Cache TTL (sec)',
+                'type': 'number',
+                'default': '10',
+                'description': 'Time-to-live for cached price data in seconds'
+            },
+            {
+                'key': 'MARKET_TYPES_JSON',
+                'label': 'Market Types (JSON)',
+                'type': 'text',
+                'default': '[]',
+                'required': False,
+                'description': 'Custom market type definitions in JSON format'
+            },
+            {
+                'key': 'TRADING_SUPPORTED_SYMBOLS_JSON',
+                'label': 'Supported Symbols (JSON)',
+                'type': 'text',
+                'default': '[]',
+                'required': False,
+                'description': 'List of supported trading symbols in JSON format'
+            },
+        ]
+    },
+
+    # ==================== 6. 数据源配置 ====================
     'data_source': {
-        'title': '数据源配置',
+        'title': 'Data Sources',
+        'icon': 'database',
+        'order': 6,
         'items': [
-            {'key': 'DATA_SOURCE_TIMEOUT', 'label': '数据源超时(秒)', 'type': 'number', 'default': '30'},
-            {'key': 'DATA_SOURCE_RETRY', 'label': '重试次数', 'type': 'number', 'default': '3'},
-            {'key': 'DATA_SOURCE_RETRY_BACKOFF', 'label': '重试退避(秒)', 'type': 'number', 'default': '0.5'},
-            {'key': 'FINNHUB_API_KEY', 'label': 'Finnhub API Key', 'type': 'password', 'required': False, 'link': 'https://finnhub.io/register', 'link_text': 'settings.link.freeRegister'},
-            {'key': 'FINNHUB_TIMEOUT', 'label': 'Finnhub超时(秒)', 'type': 'number', 'default': '10'},
-            {'key': 'FINNHUB_RATE_LIMIT', 'label': 'Finnhub速率限制', 'type': 'number', 'default': '60'},
-            {'key': 'CCXT_DEFAULT_EXCHANGE', 'label': 'CCXT默认交易所', 'type': 'text', 'default': 'coinbase', 'link': 'https://github.com/ccxt/ccxt#supported-cryptocurrency-exchange-markets', 'link_text': 'settings.link.supportedExchanges'},
-            {'key': 'CCXT_TIMEOUT', 'label': 'CCXT超时(ms)', 'type': 'number', 'default': '10000'},
-            {'key': 'CCXT_PROXY', 'label': 'CCXT代理', 'type': 'text', 'required': False},
-            {'key': 'AKSHARE_TIMEOUT', 'label': 'Akshare超时(秒)', 'type': 'number', 'default': '30'},
-            {'key': 'YFINANCE_TIMEOUT', 'label': 'YFinance超时(秒)', 'type': 'number', 'default': '30'},
-            {'key': 'TIINGO_API_KEY', 'label': 'Tiingo API Key', 'type': 'password', 'required': False, 'link': 'https://www.tiingo.com/account/api/token', 'link_text': 'settings.link.getToken'},
-            {'key': 'TIINGO_TIMEOUT', 'label': 'Tiingo超时(秒)', 'type': 'number', 'default': '10'},
+            {
+                'key': 'DATA_SOURCE_TIMEOUT',
+                'label': 'Default Timeout (sec)',
+                'type': 'number',
+                'default': '30',
+                'description': 'Default timeout for all data source requests'
+            },
+            {
+                'key': 'DATA_SOURCE_RETRY',
+                'label': 'Retry Count',
+                'type': 'number',
+                'default': '3',
+                'description': 'Number of retry attempts on data source failure'
+            },
+            {
+                'key': 'DATA_SOURCE_RETRY_BACKOFF',
+                'label': 'Retry Backoff (sec)',
+                'type': 'number',
+                'default': '0.5',
+                'description': 'Backoff time between retry attempts'
+            },
+            {
+                'key': 'CCXT_DEFAULT_EXCHANGE',
+                'label': 'CCXT Default Exchange',
+                'type': 'text',
+                'default': 'coinbase',
+                'link': 'https://github.com/ccxt/ccxt#supported-cryptocurrency-exchange-markets',
+                'link_text': 'settings.link.supportedExchanges',
+                'description': 'Default exchange for CCXT crypto data (binance, coinbase, okx, etc.)'
+            },
+            {
+                'key': 'CCXT_TIMEOUT',
+                'label': 'CCXT Timeout (ms)',
+                'type': 'number',
+                'default': '10000',
+                'description': 'CCXT request timeout in milliseconds'
+            },
+            {
+                'key': 'CCXT_PROXY',
+                'label': 'CCXT Proxy',
+                'type': 'text',
+                'required': False,
+                'description': 'Proxy URL for CCXT requests (e.g. socks5h://127.0.0.1:1080)'
+            },
+            {
+                'key': 'FINNHUB_API_KEY',
+                'label': 'Finnhub API Key',
+                'type': 'password',
+                'required': False,
+                'link': 'https://finnhub.io/register',
+                'link_text': 'settings.link.freeRegister',
+                'description': 'Finnhub API key for US stock data (free tier available)'
+            },
+            {
+                'key': 'FINNHUB_TIMEOUT',
+                'label': 'Finnhub Timeout (sec)',
+                'type': 'number',
+                'default': '10',
+                'description': 'Finnhub API request timeout'
+            },
+            {
+                'key': 'FINNHUB_RATE_LIMIT',
+                'label': 'Finnhub Rate Limit',
+                'type': 'number',
+                'default': '60',
+                'description': 'Finnhub API rate limit (requests per minute)'
+            },
+            {
+                'key': 'TIINGO_API_KEY',
+                'label': 'Tiingo API Key',
+                'type': 'password',
+                'required': False,
+                'link': 'https://www.tiingo.com/account/api/token',
+                'link_text': 'settings.link.getToken',
+                'description': 'Tiingo API key for US stock data (free tier available)'
+            },
+            {
+                'key': 'TIINGO_TIMEOUT',
+                'label': 'Tiingo Timeout (sec)',
+                'type': 'number',
+                'default': '10',
+                'description': 'Tiingo API request timeout'
+            },
+            {
+                'key': 'AKSHARE_TIMEOUT',
+                'label': 'Akshare Timeout (sec)',
+                'type': 'number',
+                'default': '30',
+                'description': 'Akshare API timeout for China A-share data'
+            },
+            {
+                'key': 'YFINANCE_TIMEOUT',
+                'label': 'YFinance Timeout (sec)',
+                'type': 'number',
+                'default': '30',
+                'description': 'Yahoo Finance API timeout'
+            },
         ]
     },
-    'search': {
-        'title': '搜索配置',
+
+    # ==================== 7. 通知推送 ====================
+    'notification': {
+        'title': 'Notifications',
+        'icon': 'notification',
+        'order': 7,
         'items': [
-            {'key': 'SEARCH_PROVIDER', 'label': '搜索提供商', 'type': 'select', 'options': ['google', 'bing', 'none'], 'default': 'google'},
-            {'key': 'SEARCH_MAX_RESULTS', 'label': '最大结果数', 'type': 'number', 'default': '10'},
-            {'key': 'SEARCH_GOOGLE_API_KEY', 'label': 'Google API Key', 'type': 'password', 'required': False, 'link': 'https://developers.google.com/custom-search/v1/introduction', 'link_text': 'settings.link.applyApi'},
-            {'key': 'SEARCH_GOOGLE_CX', 'label': 'Google CX', 'type': 'text', 'required': False, 'link': 'https://programmablesearchengine.google.com/controlpanel/all', 'link_text': 'settings.link.createSearchEngine'},
-            {'key': 'SEARCH_BING_API_KEY', 'label': 'Bing API Key', 'type': 'password', 'required': False, 'link': 'https://www.microsoft.com/en-us/bing/apis/bing-web-search-api', 'link_text': 'settings.link.applyApi'},
-            {'key': 'INTERNAL_API_KEY', 'label': '内部API Key', 'type': 'password', 'required': False},
+            {
+                'key': 'SIGNAL_WEBHOOK_URL',
+                'label': 'Webhook URL',
+                'type': 'text',
+                'required': False,
+                'description': 'Custom webhook URL for signal notifications (POST JSON)'
+            },
+            {
+                'key': 'SIGNAL_WEBHOOK_TOKEN',
+                'label': 'Webhook Token',
+                'type': 'password',
+                'required': False,
+                'description': 'Authentication token sent in webhook header'
+            },
+            {
+                'key': 'SIGNAL_NOTIFY_TIMEOUT_SEC',
+                'label': 'Notify Timeout (sec)',
+                'type': 'number',
+                'default': '6',
+                'description': 'Notification request timeout'
+            },
+            {
+                'key': 'TELEGRAM_BOT_TOKEN',
+                'label': 'Telegram Bot Token',
+                'type': 'password',
+                'required': False,
+                'link': 'https://t.me/BotFather',
+                'link_text': 'settings.link.createBot',
+                'description': 'Telegram bot token from @BotFather for signal notifications'
+            },
+        ]
+    },
+
+    # ==================== 8. 邮件配置 ====================
+    'email': {
+        'title': 'Email (SMTP)',
+        'icon': 'mail',
+        'order': 8,
+        'items': [
+            {
+                'key': 'SMTP_HOST',
+                'label': 'SMTP Server',
+                'type': 'text',
+                'required': False,
+                'description': 'SMTP server hostname (e.g. smtp.gmail.com)'
+            },
+            {
+                'key': 'SMTP_PORT',
+                'label': 'SMTP Port',
+                'type': 'number',
+                'default': '587',
+                'description': 'SMTP port (587 for TLS, 465 for SSL, 25 for plain)'
+            },
+            {
+                'key': 'SMTP_USER',
+                'label': 'SMTP Username',
+                'type': 'text',
+                'required': False,
+                'description': 'SMTP authentication username (usually email address)'
+            },
+            {
+                'key': 'SMTP_PASSWORD',
+                'label': 'SMTP Password',
+                'type': 'password',
+                'required': False,
+                'description': 'SMTP authentication password or app-specific password'
+            },
+            {
+                'key': 'SMTP_FROM',
+                'label': 'Sender Address',
+                'type': 'text',
+                'required': False,
+                'description': 'Email sender address (From header)'
+            },
+            {
+                'key': 'SMTP_USE_TLS',
+                'label': 'Use TLS',
+                'type': 'boolean',
+                'default': 'True',
+                'description': 'Enable STARTTLS encryption (recommended for port 587)'
+            },
+            {
+                'key': 'SMTP_USE_SSL',
+                'label': 'Use SSL',
+                'type': 'boolean',
+                'default': 'False',
+                'description': 'Enable SSL encryption (for port 465)'
+            },
+        ]
+    },
+
+    # ==================== 9. 短信配置 ====================
+    'sms': {
+        'title': 'SMS (Twilio)',
+        'icon': 'phone',
+        'order': 9,
+        'items': [
+            {
+                'key': 'TWILIO_ACCOUNT_SID',
+                'label': 'Account SID',
+                'type': 'password',
+                'required': False,
+                'link': 'https://console.twilio.com/',
+                'link_text': 'settings.link.getApi',
+                'description': 'Twilio Account SID from console dashboard'
+            },
+            {
+                'key': 'TWILIO_AUTH_TOKEN',
+                'label': 'Auth Token',
+                'type': 'password',
+                'required': False,
+                'description': 'Twilio Auth Token from console dashboard'
+            },
+            {
+                'key': 'TWILIO_FROM_NUMBER',
+                'label': 'Sender Number',
+                'type': 'text',
+                'required': False,
+                'description': 'Twilio phone number for sending SMS (e.g. +1234567890)'
+            },
+        ]
+    },
+
+    # ==================== 10. AI Agent 配置 ====================
+    'agent': {
+        'title': 'AI Agent',
+        'icon': 'experiment',
+        'order': 10,
+        'items': [
+            {
+                'key': 'ENABLE_AGENT_MEMORY',
+                'label': 'Enable Agent Memory',
+                'type': 'boolean',
+                'default': 'True',
+                'description': 'Enable AI agent memory for learning from past trades'
+            },
+            {
+                'key': 'AGENT_MEMORY_ENABLE_VECTOR',
+                'label': 'Enable Vector Search',
+                'type': 'boolean',
+                'default': 'True',
+                'description': 'Enable local vector similarity search for memory retrieval'
+            },
+            {
+                'key': 'AGENT_MEMORY_EMBEDDING_DIM',
+                'label': 'Embedding Dimension',
+                'type': 'number',
+                'default': '256',
+                'description': 'Vector embedding dimension for memory storage'
+            },
+            {
+                'key': 'AGENT_MEMORY_TOP_K',
+                'label': 'Retrieval Top-K',
+                'type': 'number',
+                'default': '5',
+                'description': 'Number of similar memories to retrieve'
+            },
+            {
+                'key': 'AGENT_MEMORY_CANDIDATE_LIMIT',
+                'label': 'Candidate Limit',
+                'type': 'number',
+                'default': '500',
+                'description': 'Maximum candidates for similarity search'
+            },
+            {
+                'key': 'AGENT_MEMORY_HALF_LIFE_DAYS',
+                'label': 'Recency Half-life (days)',
+                'type': 'number',
+                'default': '30',
+                'description': 'Time decay half-life for memory recency scoring'
+            },
+            {
+                'key': 'AGENT_MEMORY_W_SIM',
+                'label': 'Similarity Weight',
+                'type': 'number',
+                'default': '0.75',
+                'description': 'Weight for similarity score in memory ranking (0-1)'
+            },
+            {
+                'key': 'AGENT_MEMORY_W_RECENCY',
+                'label': 'Recency Weight',
+                'type': 'number',
+                'default': '0.20',
+                'description': 'Weight for recency score in memory ranking (0-1)'
+            },
+            {
+                'key': 'AGENT_MEMORY_W_RETURNS',
+                'label': 'Returns Weight',
+                'type': 'number',
+                'default': '0.05',
+                'description': 'Weight for returns score in memory ranking (0-1)'
+            },
+            {
+                'key': 'ENABLE_REFLECTION_WORKER',
+                'label': 'Enable Auto Reflection',
+                'type': 'boolean',
+                'default': 'False',
+                'description': 'Enable background worker for automatic trade reflection'
+            },
+            {
+                'key': 'REFLECTION_WORKER_INTERVAL_SEC',
+                'label': 'Reflection Interval (sec)',
+                'type': 'number',
+                'default': '86400',
+                'description': 'Interval between automatic reflection runs (default: 24h)'
+            },
+        ]
+    },
+
+    # ==================== 11. 网络代理 ====================
+    'network': {
+        'title': 'Network & Proxy',
+        'icon': 'global',
+        'order': 11,
+        'items': [
+            {
+                'key': 'PROXY_HOST',
+                'label': 'Proxy Host',
+                'type': 'text',
+                'default': '127.0.0.1',
+                'description': 'Proxy server hostname or IP'
+            },
+            {
+                'key': 'PROXY_PORT',
+                'label': 'Proxy Port',
+                'type': 'text',
+                'required': False,
+                'description': 'Proxy server port (leave empty to disable proxy)'
+            },
+            {
+                'key': 'PROXY_SCHEME',
+                'label': 'Proxy Protocol',
+                'type': 'select',
+                'options': ['socks5h', 'socks5', 'http', 'https'],
+                'default': 'socks5h',
+                'description': 'Proxy protocol type. socks5h: SOCKS5 with DNS resolution'
+            },
+            {
+                'key': 'PROXY_URL',
+                'label': 'Full Proxy URL',
+                'type': 'text',
+                'required': False,
+                'description': 'Complete proxy URL (overrides above settings if set)'
+            },
+        ]
+    },
+
+    # ==================== 12. 搜索配置 ====================
+    'search': {
+        'title': 'Web Search',
+        'icon': 'search',
+        'order': 12,
+        'items': [
+            {
+                'key': 'SEARCH_PROVIDER',
+                'label': 'Search Provider',
+                'type': 'select',
+                'options': ['google', 'bing', 'none'],
+                'default': 'google',
+                'description': 'Web search provider for AI research features'
+            },
+            {
+                'key': 'SEARCH_MAX_RESULTS',
+                'label': 'Max Results',
+                'type': 'number',
+                'default': '10',
+                'description': 'Maximum search results to return'
+            },
+            {
+                'key': 'SEARCH_GOOGLE_API_KEY',
+                'label': 'Google API Key',
+                'type': 'password',
+                'required': False,
+                'link': 'https://developers.google.com/custom-search/v1/introduction',
+                'link_text': 'settings.link.applyApi',
+                'description': 'Google Custom Search JSON API key'
+            },
+            {
+                'key': 'SEARCH_GOOGLE_CX',
+                'label': 'Google Search Engine ID',
+                'type': 'text',
+                'required': False,
+                'link': 'https://programmablesearchengine.google.com/controlpanel/all',
+                'link_text': 'settings.link.createSearchEngine',
+                'description': 'Google Programmable Search Engine ID (CX)'
+            },
+            {
+                'key': 'SEARCH_BING_API_KEY',
+                'label': 'Bing API Key',
+                'type': 'password',
+                'required': False,
+                'link': 'https://www.microsoft.com/en-us/bing/apis/bing-web-search-api',
+                'link_text': 'settings.link.applyApi',
+                'description': 'Microsoft Bing Web Search API key'
+            },
+            {
+                'key': 'INTERNAL_API_KEY',
+                'label': 'Internal API Key',
+                'type': 'password',
+                'required': False,
+                'description': 'Internal API authentication key for service-to-service calls'
+            },
+        ]
+    },
+
+    # ==================== 13. 应用配置 ====================
+    'app': {
+        'title': 'Application',
+        'icon': 'appstore',
+        'order': 13,
+        'items': [
+            {
+                'key': 'CORS_ORIGINS',
+                'label': 'CORS Origins',
+                'type': 'text',
+                'default': '*',
+                'description': 'Allowed CORS origins (* for all, or comma-separated list)'
+            },
+            {
+                'key': 'RATE_LIMIT',
+                'label': 'Rate Limit (req/min)',
+                'type': 'number',
+                'default': '100',
+                'description': 'API rate limit per IP per minute'
+            },
+            {
+                'key': 'ENABLE_CACHE',
+                'label': 'Enable Cache',
+                'type': 'boolean',
+                'default': 'False',
+                'description': 'Enable response caching for improved performance'
+            },
+            {
+                'key': 'ENABLE_REQUEST_LOG',
+                'label': 'Enable Request Log',
+                'type': 'boolean',
+                'default': 'True',
+                'description': 'Log all API requests for debugging'
+            },
+            {
+                'key': 'ENABLE_AI_ANALYSIS',
+                'label': 'Enable AI Analysis',
+                'type': 'boolean',
+                'default': 'True',
+                'description': 'Enable AI-powered market analysis features'
+            },
         ]
     },
 }

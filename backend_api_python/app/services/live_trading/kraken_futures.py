@@ -186,6 +186,8 @@ class KrakenFuturesClient(BaseRestClient):
             status = str(last.get("status") or last.get("orderStatus") or "")
             filled = 0.0
             avg_price = 0.0
+            fee = 0.0
+            fee_ccy = ""
             try:
                 filled = float(last.get("filledSize") or last.get("filled_size") or 0.0)
             except Exception:
@@ -194,12 +196,20 @@ class KrakenFuturesClient(BaseRestClient):
                 avg_price = float(last.get("avgFillPrice") or last.get("avg_fill_price") or 0.0)
             except Exception:
                 avg_price = 0.0
+            # Extract fee from Kraken Futures API (if available)
+            try:
+                fee = abs(float(last.get("fee") or 0.0))
+            except Exception:
+                fee = 0.0
+            # Kraken Futures fees are typically in USD
+            if fee > 0:
+                fee_ccy = "USD"
             if filled > 0 and avg_price > 0:
-                return {"filled": filled, "avg_price": avg_price, "status": status, "order": last}
+                return {"filled": filled, "avg_price": avg_price, "fee": fee, "fee_ccy": fee_ccy, "status": status, "order": last}
             if status.lower() in ("filled", "cancelled", "canceled", "rejected"):
-                return {"filled": filled, "avg_price": avg_price, "status": status, "order": last}
+                return {"filled": filled, "avg_price": avg_price, "fee": fee, "fee_ccy": fee_ccy, "status": status, "order": last}
             if time.time() >= end_ts:
-                return {"filled": filled, "avg_price": avg_price, "status": status, "order": last}
+                return {"filled": filled, "avg_price": avg_price, "fee": fee, "fee_ccy": fee_ccy, "status": status, "order": last}
             time.sleep(float(poll_interval_sec or 0.5))
 
 

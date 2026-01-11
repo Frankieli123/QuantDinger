@@ -28,14 +28,12 @@
     <a-spin :spinning="loading">
       <div class="settings-content">
         <a-collapse v-model="activeKeys" :bordered="false" class="settings-collapse">
-          <a-collapse-panel v-for="(group, groupKey) in schema" :key="groupKey">
+          <a-collapse-panel v-for="(group, groupKey) in sortedSchema" :key="groupKey">
             <template slot="header">
               <span class="panel-header">
+                <a-icon :type="group.icon || getGroupIcon(groupKey)" class="panel-icon-left" />
                 <span class="panel-title">{{ getGroupTitle(groupKey, group.title) }}</span>
               </span>
-            </template>
-            <template slot="extra">
-              <a-icon :type="getGroupIcon(groupKey)" class="panel-icon" />
             </template>
 
             <a-form :form="form" layout="vertical" class="settings-form">
@@ -49,8 +47,14 @@
                   :key="item.key">
                   <a-form-item>
                     <template slot="label">
-                      <span class="form-label-with-link">
-                        <span>{{ getItemLabel(groupKey, item) }}</span>
+                      <span class="form-label-with-tooltip">
+                        <span class="label-text">{{ getItemLabel(groupKey, item) }}</span>
+                        <a-tooltip v-if="item.description" placement="top">
+                          <template slot="title">
+                            {{ getItemDescription(groupKey, item) }}
+                          </template>
+                          <a-icon type="question-circle" class="help-icon" />
+                        </a-tooltip>
                         <a
                           v-if="item.link"
                           :href="item.link"
@@ -158,7 +162,7 @@ export default {
       saving: false,
       schema: {},
       values: {},
-      activeKeys: ['ai', 'data_source', 'app', 'auth'],
+      activeKeys: ['server', 'auth', 'ai', 'trading'],
       passwordVisible: {},
       showRestartTip: false
     }
@@ -166,6 +170,20 @@ export default {
   computed: {
     isDarkTheme () {
       return this.navTheme === 'dark' || this.navTheme === 'realdark'
+    },
+    // 按 order 排序的 schema
+    sortedSchema () {
+      const entries = Object.entries(this.schema)
+      entries.sort((a, b) => {
+        const orderA = a[1].order || 999
+        const orderB = b[1].order || 999
+        return orderA - orderB
+      })
+      const sorted = {}
+      for (const [key, value] of entries) {
+        sorted[key] = value
+      }
+      return sorted
     }
   },
   beforeCreate () {
@@ -203,15 +221,16 @@ export default {
         server: 'cloud-server',
         worker: 'schedule',
         notification: 'notification',
-        smtp: 'mail',
-        twilio: 'phone',
+        email: 'mail',
+        sms: 'phone',
         strategy: 'fund',
-        proxy: 'global',
+        network: 'global',
         app: 'appstore',
         ai: 'robot',
-        market: 'stock',
+        trading: 'stock',
         data_source: 'database',
-        search: 'search'
+        search: 'search',
+        agent: 'experiment'
       }
       return icons[groupKey] || 'setting'
     },
@@ -226,6 +245,17 @@ export default {
       const key = `settings.field.${item.key}`
       const translated = this.$t(key)
       return translated !== key ? translated : item.label
+    },
+
+    getItemDescription (groupKey, item) {
+      // 先尝试从多语言获取描述
+      const key = `settings.desc.${item.key}`
+      const translated = this.$t(key)
+      if (translated !== key) {
+        return translated
+      }
+      // 回退到后端返回的描述
+      return item.description || ''
     },
 
     getLinkText (linkText) {
@@ -400,16 +430,17 @@ export default {
         .panel-header {
           display: inline-flex;
           align-items: center;
+          gap: 10px;
           flex: 1;
+
+          .panel-icon-left {
+            font-size: 18px;
+            color: @primary-color;
+          }
 
           .panel-title {
             font-size: 16px;
           }
-        }
-
-        .panel-icon {
-          font-size: 18px;
-          color: @primary-color;
         }
       }
 
@@ -432,10 +463,27 @@ export default {
         font-weight: 500;
       }
 
-      .form-label-with-link {
+      .form-label-with-tooltip {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
+        flex-wrap: wrap;
+
+        .label-text {
+          color: #475569;
+          font-weight: 500;
+        }
+
+        .help-icon {
+          font-size: 14px;
+          color: #94a3b8;
+          cursor: help;
+          transition: color 0.2s;
+
+          &:hover {
+            color: @primary-color;
+          }
+        }
 
         .api-link {
           font-size: 12px;
@@ -449,6 +497,7 @@ export default {
           background: rgba(24, 144, 255, 0.08);
           border-radius: 4px;
           transition: all 0.2s;
+          margin-left: 4px;
 
           &:hover {
             background: rgba(24, 144, 255, 0.15);
@@ -540,8 +589,13 @@ export default {
           color: #e0e6ed;
           border-bottom-color: rgba(255, 255, 255, 0.06);
 
-          .panel-header .panel-title {
-            color: #e0e6ed;
+          .panel-header {
+            .panel-icon-left {
+              color: #58a6ff;
+            }
+            .panel-title {
+              color: #e0e6ed;
+            }
           }
         }
 
@@ -561,12 +615,26 @@ export default {
           color: #c9d1d9;
         }
 
-        .form-label-with-link .api-link {
-          background: rgba(24, 144, 255, 0.15);
-          color: #58a6ff;
+        .form-label-with-tooltip {
+          .label-text {
+            color: #c9d1d9;
+          }
 
-          &:hover {
-            background: rgba(24, 144, 255, 0.25);
+          .help-icon {
+            color: #6e7681;
+
+            &:hover {
+              color: #58a6ff;
+            }
+          }
+
+          .api-link {
+            background: rgba(24, 144, 255, 0.15);
+            color: #58a6ff;
+
+            &:hover {
+              background: rgba(24, 144, 255, 0.25);
+            }
           }
         }
       }

@@ -315,12 +315,22 @@ class BybitClient(BaseRestClient):
                 avg_price = float(last.get("avgPrice") or 0.0)
             except Exception:
                 avg_price = 0.0
+            # Extract fee from cumExecFee (Bybit API field for cumulative execution fee)
+            fee = 0.0
+            fee_ccy = ""
+            try:
+                fee = abs(float(last.get("cumExecFee") or 0.0))
+            except Exception:
+                fee = 0.0
+            # Bybit linear contracts are settled in USDT
+            if fee > 0:
+                fee_ccy = "USDT"
             if filled > 0 and avg_price > 0:
-                return {"filled": filled, "avg_price": avg_price, "status": status, "order": last}
+                return {"filled": filled, "avg_price": avg_price, "fee": fee, "fee_ccy": fee_ccy, "status": status, "order": last}
             if status.lower() in ("filled", "cancelled", "canceled", "rejected"):
-                return {"filled": filled, "avg_price": avg_price, "status": status, "order": last}
+                return {"filled": filled, "avg_price": avg_price, "fee": fee, "fee_ccy": fee_ccy, "status": status, "order": last}
             if time.time() >= end_ts:
-                return {"filled": filled, "avg_price": avg_price, "status": status, "order": last}
+                return {"filled": filled, "avg_price": avg_price, "fee": fee, "fee_ccy": fee_ccy, "status": status, "order": last}
             time.sleep(float(poll_interval_sec or 0.5))
 
     def get_positions(self) -> Dict[str, Any]:

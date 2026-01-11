@@ -2221,8 +2221,11 @@ class TradingExecutor:
         margin_mode: str = 'cross',
         stop_loss_price: float = None,
         take_profit_price: float = None,
-        order_mode: str = 'maker',
-        maker_wait_sec: float = 8.0,
+        # Order execution params (order_mode, maker_wait_sec, maker_offset_bps) are now
+        # configured via environment variables: ORDER_MODE, MAKER_WAIT_SEC, MAKER_OFFSET_BPS
+        # These parameters are kept for backward compatibility but will be ignored.
+        order_mode: str = None,
+        maker_wait_sec: float = None,
         maker_retries: int = 3,
         close_fallback_to_market: bool = True,
         open_fallback_to_market: bool = True,
@@ -2236,6 +2239,9 @@ class TradingExecutor:
         A separate worker will poll `pending_orders` and dispatch:
         - execution_mode='signal': dispatch notifications (no real trading).
         - execution_mode='live': reserved for future live trading execution (not implemented).
+
+        Note: Order execution settings (order_mode, maker_wait_sec, maker_offset_bps) are now
+        configured via environment variables and not passed from strategy config.
         """
         try:
             # Reference price at enqueue time: use current tick price if provided to avoid extra fetch.
@@ -2249,8 +2255,7 @@ class TradingExecutor:
                 "stop_loss_price": float(stop_loss_price or 0.0) if stop_loss_price is not None else 0.0,
                 "take_profit_price": float(take_profit_price or 0.0) if take_profit_price is not None else 0.0,
                 "margin_mode": str(margin_mode or "cross"),
-                "order_mode": str(order_mode or "maker"),
-                "maker_wait_sec": float(maker_wait_sec or 0.0),
+                # Order execution params moved to env config (ORDER_MODE, MAKER_WAIT_SEC, MAKER_OFFSET_BPS)
                 "maker_retries": int(maker_retries or 0),
                 "close_fallback_to_market": bool(close_fallback_to_market),
                 "open_fallback_to_market": bool(open_fallback_to_market),

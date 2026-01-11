@@ -2570,8 +2570,7 @@ export default {
                 trade_direction: tradeDirection,
                 timeframe: values.timeframe,
                 market_type: marketType,
-                // Preset order params (advanced settings removed from UI)
-                order_mode: 'maker',
+                // Order execution settings moved to backend env config (ORDER_MODE, MAKER_WAIT_SEC, MAKER_OFFSET_BPS)
                 margin_mode: 'cross',
                 signal_mode: 'confirmed',
                 // Backtest-like configs

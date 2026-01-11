@@ -234,8 +234,11 @@ class BitfinexDerivativesClient(BitfinexClient):
                 last = last or []
             filled = 0.0
             avg_price = 0.0
+            fee = 0.0
+            fee_ccy = ""
             status = ""
             # best-effort parsing from array fields
+            # Bitfinex order response format: [ID, GID, CID, SYMBOL, MTS_CREATE, MTS_UPDATE, AMOUNT, AMOUNT_ORIG, TYPE, TYPE_PREV, MTS_TIF, _, FLAGS, STATUS, _, PRICE_AVG, ...]
             try:
                 if isinstance(last, list) and len(last) >= 15:
                     status = str(last[13] or "")
@@ -245,12 +248,14 @@ class BitfinexDerivativesClient(BitfinexClient):
                     avg_price = float(last[14] or 0.0)
             except Exception:
                 pass
+            # Note: Bitfinex order response doesn't include fee; fee is typically in trades.
+            # We return 0.0 here; actual fee can be fetched via trades endpoint if needed.
             if filled > 0 and avg_price > 0:
-                return {"filled": filled, "avg_price": avg_price, "status": status, "order": last}
+                return {"filled": filled, "avg_price": avg_price, "fee": fee, "fee_ccy": fee_ccy, "status": status, "order": last}
             if isinstance(status, str) and ("EXECUTED" in status.upper() or "CANCELED" in status.upper()):
-                return {"filled": filled, "avg_price": avg_price, "status": status, "order": last}
+                return {"filled": filled, "avg_price": avg_price, "fee": fee, "fee_ccy": fee_ccy, "status": status, "order": last}
             if time.time() >= end_ts:
-                return {"filled": filled, "avg_price": avg_price, "status": status, "order": last}
+                return {"filled": filled, "avg_price": avg_price, "fee": fee, "fee_ccy": fee_ccy, "status": status, "order": last}
             time.sleep(float(poll_interval_sec or 0.5))
 
 

@@ -12,7 +12,7 @@ import json
 import os
 import threading
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from app.services.signal_notifier import SignalNotifier
 from app.services.exchange_execution import load_strategy_configs, resolve_exchange_config, safe_exchange_config_for_log
@@ -722,12 +722,17 @@ class PendingOrderWorker:
             _notify_live_best_effort(status="failed", error="spot_market_does_not_support_short_signals")
             return
 
-        # Unified maker->market fallback settings (defaults: 10 seconds)
-        order_mode = str(payload.get("order_mode") or payload.get("orderMode") or "maker").strip().lower()
-        maker_wait_sec = float(payload.get("maker_wait_sec") or payload.get("makerWaitSec") or 10.0)
-        maker_offset_bps = float(payload.get("maker_offset_bps") or payload.get("makerOffsetBps") or 2.0)
+        # Unified maker->market fallback settings
+        # Priority: payload config > environment variable > default value
+        _default_order_mode = os.getenv("ORDER_MODE", "maker").strip().lower()
+        _default_maker_wait_sec = float(os.getenv("MAKER_WAIT_SEC", "10"))
+        _default_maker_offset_bps = float(os.getenv("MAKER_OFFSET_BPS", "2"))
+
+        order_mode = str(payload.get("order_mode") or payload.get("orderMode") or _default_order_mode).strip().lower()
+        maker_wait_sec = float(payload.get("maker_wait_sec") or payload.get("makerWaitSec") or _default_maker_wait_sec)
+        maker_offset_bps = float(payload.get("maker_offset_bps") or payload.get("makerOffsetBps") or _default_maker_offset_bps)
         if maker_wait_sec <= 0:
-            maker_wait_sec = 10.0
+            maker_wait_sec = _default_maker_wait_sec if _default_maker_wait_sec > 0 else 10.0
         if maker_offset_bps < 0:
             maker_offset_bps = 0.0
         maker_offset = maker_offset_bps / 10000.0
@@ -1070,18 +1075,22 @@ class PendingOrderWorker:
                     q = client.wait_for_fill(symbol=str(symbol), order_id=limit_order_id, client_order_id=limit_client_oid, max_wait_sec=maker_wait_sec)
                     phases["limit_query"] = q
                     _apply_fill(float(q.get("filled") or 0.0), float(q.get("avg_price") or 0.0))
+                    _apply_fee(float(q.get("fee") or 0.0), str(q.get("fee_ccy") or ""))
                 elif isinstance(client, CoinbaseExchangeClient):
                     q = client.wait_for_fill(order_id=limit_order_id, client_order_id=limit_client_oid, max_wait_sec=maker_wait_sec)
                     phases["limit_query"] = q
                     _apply_fill(float(q.get("filled") or 0.0), float(q.get("avg_price") or 0.0))
+                    _apply_fee(float(q.get("fee") or 0.0), str(q.get("fee_ccy") or ""))
                 elif isinstance(client, KrakenClient):
                     q = client.wait_for_fill(order_id=limit_order_id, max_wait_sec=maker_wait_sec)
                     phases["limit_query"] = q
                     _apply_fill(float(q.get("filled") or 0.0), float(q.get("avg_price") or 0.0))
+                    _apply_fee(float(q.get("fee") or 0.0), str(q.get("fee_ccy") or ""))
                 elif isinstance(client, KrakenFuturesClient):
                     q = client.wait_for_fill(order_id=limit_order_id, client_order_id=limit_client_oid, max_wait_sec=maker_wait_sec)
                     phases["limit_query"] = q
                     _apply_fill(float(q.get("filled") or 0.0), float(q.get("avg_price") or 0.0))
+                    _apply_fee(float(q.get("fee") or 0.0), str(q.get("fee_ccy") or ""))
                 elif isinstance(client, KucoinSpotClient):
                     q = client.wait_for_fill(order_id=limit_order_id, max_wait_sec=maker_wait_sec)
                     phases["limit_query"] = q
@@ -1091,22 +1100,27 @@ class PendingOrderWorker:
                     q = client.wait_for_fill(order_id=limit_order_id, max_wait_sec=maker_wait_sec)
                     phases["limit_query"] = q
                     _apply_fill(float(q.get("filled") or 0.0), float(q.get("avg_price") or 0.0))
+                    _apply_fee(float(q.get("fee") or 0.0), str(q.get("fee_ccy") or ""))
                 elif isinstance(client, GateSpotClient):
                     q = client.wait_for_fill(order_id=limit_order_id, max_wait_sec=maker_wait_sec)
                     phases["limit_query"] = q
                     _apply_fill(float(q.get("filled") or 0.0), float(q.get("avg_price") or 0.0))
+                    _apply_fee(float(q.get("fee") or 0.0), str(q.get("fee_ccy") or ""))
                 elif isinstance(client, GateUsdtFuturesClient):
                     q = client.wait_for_fill(order_id=limit_order_id, contract=to_gate_currency_pair(str(symbol)), max_wait_sec=maker_wait_sec)
                     phases["limit_query"] = q
                     _apply_fill(float(q.get("filled") or 0.0), float(q.get("avg_price") or 0.0))
+                    _apply_fee(float(q.get("fee") or 0.0), str(q.get("fee_ccy") or ""))
                 elif isinstance(client, BitfinexClient):
                     q = client.wait_for_fill(order_id=limit_order_id, max_wait_sec=maker_wait_sec)
                     phases["limit_query"] = q
                     _apply_fill(float(q.get("filled") or 0.0), float(q.get("avg_price") or 0.0))
+                    _apply_fee(float(q.get("fee") or 0.0), str(q.get("fee_ccy") or ""))
                 elif isinstance(client, BitfinexDerivativesClient):
                     q = client.wait_for_fill(order_id=limit_order_id, max_wait_sec=maker_wait_sec)
                     phases["limit_query"] = q
                     _apply_fill(float(q.get("filled") or 0.0), float(q.get("avg_price") or 0.0))
+                    _apply_fee(float(q.get("fee") or 0.0), str(q.get("fee_ccy") or ""))
 
                 remaining = max(0.0, float(amount or 0.0) - total_base)
 
@@ -1386,18 +1400,22 @@ class PendingOrderWorker:
                     q2 = client.wait_for_fill(symbol=str(symbol), order_id=market_order_id, client_order_id=market_client_oid, max_wait_sec=3.0)
                     phases["market_query"] = q2
                     _apply_fill(float(q2.get("filled") or 0.0), float(q2.get("avg_price") or 0.0))
+                    _apply_fee(float(q2.get("fee") or 0.0), str(q2.get("fee_ccy") or ""))
                 elif isinstance(client, CoinbaseExchangeClient):
                     q2 = client.wait_for_fill(order_id=market_order_id, client_order_id=market_client_oid, max_wait_sec=3.0)
                     phases["market_query"] = q2
                     _apply_fill(float(q2.get("filled") or 0.0), float(q2.get("avg_price") or 0.0))
+                    _apply_fee(float(q2.get("fee") or 0.0), str(q2.get("fee_ccy") or ""))
                 elif isinstance(client, KrakenClient):
                     q2 = client.wait_for_fill(order_id=market_order_id, max_wait_sec=3.0)
                     phases["market_query"] = q2
                     _apply_fill(float(q2.get("filled") or 0.0), float(q2.get("avg_price") or 0.0))
+                    _apply_fee(float(q2.get("fee") or 0.0), str(q2.get("fee_ccy") or ""))
                 elif isinstance(client, KrakenFuturesClient):
                     q2 = client.wait_for_fill(order_id=market_order_id, client_order_id=market_client_oid, max_wait_sec=3.0)
                     phases["market_query"] = q2
                     _apply_fill(float(q2.get("filled") or 0.0), float(q2.get("avg_price") or 0.0))
+                    _apply_fee(float(q2.get("fee") or 0.0), str(q2.get("fee_ccy") or ""))
                 elif isinstance(client, KucoinSpotClient):
                     q2 = client.wait_for_fill(order_id=market_order_id, max_wait_sec=3.0)
                     phases["market_query"] = q2
@@ -1407,22 +1425,27 @@ class PendingOrderWorker:
                     q2 = client.wait_for_fill(order_id=market_order_id, max_wait_sec=3.0)
                     phases["market_query"] = q2
                     _apply_fill(float(q2.get("filled") or 0.0), float(q2.get("avg_price") or 0.0))
+                    _apply_fee(float(q2.get("fee") or 0.0), str(q2.get("fee_ccy") or ""))
                 elif isinstance(client, GateSpotClient):
                     q2 = client.wait_for_fill(order_id=market_order_id, max_wait_sec=3.0)
                     phases["market_query"] = q2
                     _apply_fill(float(q2.get("filled") or 0.0), float(q2.get("avg_price") or 0.0))
+                    _apply_fee(float(q2.get("fee") or 0.0), str(q2.get("fee_ccy") or ""))
                 elif isinstance(client, GateUsdtFuturesClient):
                     q2 = client.wait_for_fill(order_id=market_order_id, contract=to_gate_currency_pair(str(symbol)), max_wait_sec=3.0)
                     phases["market_query"] = q2
                     _apply_fill(float(q2.get("filled") or 0.0), float(q2.get("avg_price") or 0.0))
+                    _apply_fee(float(q2.get("fee") or 0.0), str(q2.get("fee_ccy") or ""))
                 elif isinstance(client, BitfinexClient):
                     q2 = client.wait_for_fill(order_id=market_order_id, max_wait_sec=3.0)
                     phases["market_query"] = q2
                     _apply_fill(float(q2.get("filled") or 0.0), float(q2.get("avg_price") or 0.0))
+                    _apply_fee(float(q2.get("fee") or 0.0), str(q2.get("fee_ccy") or ""))
                 elif isinstance(client, BitfinexDerivativesClient):
                     q2 = client.wait_for_fill(order_id=market_order_id, max_wait_sec=3.0)
                     phases["market_query"] = q2
                     _apply_fill(float(q2.get("filled") or 0.0), float(q2.get("avg_price") or 0.0))
+                    _apply_fee(float(q2.get("fee") or 0.0), str(q2.get("fee_ccy") or ""))
             except LiveTradingError as e:
                 logger.warning(f"live market phase failed: pending_id={order_id}, strategy_id={strategy_id}, cfg={safe_cfg}, err={e}")
                 phases["market_error"] = str(e)

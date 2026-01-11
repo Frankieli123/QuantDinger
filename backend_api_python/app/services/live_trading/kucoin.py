@@ -475,6 +475,8 @@ class KucoinFuturesClient(BaseRestClient):
             status = str(od.get("status") or "")
             filled = 0.0
             avg_price = 0.0
+            fee = 0.0
+            fee_ccy = ""
             try:
                 # dealSize is in contracts; convert back to base using multiplier best-effort.
                 deal_ct = float(od.get("dealSize") or 0.0)
@@ -497,12 +499,20 @@ class KucoinFuturesClient(BaseRestClient):
             filled = abs(float(deal_ct or 0.0)) * float(mult)
             if filled > 0 and deal_value > 0:
                 avg_price = float(deal_value) / float(filled)
+            # Extract fee from KuCoin Futures API (orderMargin contains fee info in some cases)
+            try:
+                fee = abs(float(od.get("fee") or od.get("orderFee") or 0.0))
+            except Exception:
+                fee = 0.0
+            # KuCoin Futures fees are typically in USDT
+            if fee > 0:
+                fee_ccy = "USDT"
             if filled > 0 and avg_price > 0:
-                return {"filled": filled, "avg_price": avg_price, "status": status, "order": last}
+                return {"filled": filled, "avg_price": avg_price, "fee": fee, "fee_ccy": fee_ccy, "status": status, "order": last}
             if status.lower() in ("done", "canceled", "cancelled", "filled"):
-                return {"filled": filled, "avg_price": avg_price, "status": status, "order": last}
+                return {"filled": filled, "avg_price": avg_price, "fee": fee, "fee_ccy": fee_ccy, "status": status, "order": last}
             if time.time() >= end_ts:
-                return {"filled": filled, "avg_price": avg_price, "status": status, "order": last}
+                return {"filled": filled, "avg_price": avg_price, "fee": fee, "fee_ccy": fee_ccy, "status": status, "order": last}
             time.sleep(float(poll_interval_sec or 0.5))
 
 
