@@ -1,7 +1,8 @@
 # QuantDinger deployment for Dokploy (Docker Compose mode).
 # Notes:
 # - Avoid bind mounts from the repo: Dokploy AutoDeploy re-clones and clears the repo directory.
-# - Attach the public service to dokploy-network and use Traefik labels for routing.
+# - Attach the public service to dokploy-network for routing.
+# - Configure the domain in Dokploy UI (Domains tab) to avoid hardcoding host rules here.
 
 version: "3.8"
 
@@ -68,13 +69,6 @@ services:
     networks:
       - quantdinger-network
       - dokploy-network
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=dokploy-network"
-      - "traefik.http.routers.quantdinger.rule=Host(`${QD_DOMAIN:?QD_DOMAIN is required}`)"
-      - "traefik.http.routers.quantdinger.entrypoints=websecure"
-      - "traefik.http.routers.quantdinger.tls.certResolver=letsencrypt"
-      - "traefik.http.services.quantdinger.loadbalancer.server.port=80"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost/health | grep -q OK"]
       interval: 30s
@@ -91,4 +85,3 @@ networks:
     driver: bridge
   dokploy-network:
     external: true
-
