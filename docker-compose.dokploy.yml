@@ -1,0 +1,94 @@
+# QuantDinger deployment for Dokploy (Docker Compose mode).
+# Notes:
+# - Avoid bind mounts from the repo: Dokploy AutoDeploy re-clones and clears the repo directory.
+# - Attach the public service to dokploy-network and use Traefik labels for routing.
+
+version: "3.8"
+
+services:
+  postgres:
+    build:
+      context: ./backend_api_python/migrations
+      dockerfile: Dockerfile.postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-quantdinger}
+      POSTGRES_USER: ${POSTGRES_USER:-quantdinger}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - quantdinger-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-quantdinger} -d ${POSTGRES_DB:-quantdinger}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend_api_python
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PYTHON_API_HOST: 0.0.0.0
+      PYTHON_API_PORT: 5000
+      TZ: ${TZ:-Asia/Shanghai}
+
+      DB_TYPE: postgresql
+      DATABASE_URL: postgresql://${POSTGRES_USER:-quantdinger}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-quantdinger}
+
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+      ADMIN_USER: ${ADMIN_USER:-quantdinger}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      FRONTEND_URL: ${FRONTEND_URL:-}
+    volumes:
+      - backend_logs:/app/logs
+      - backend_data:/app/data
+    networks:
+      - quantdinger-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./quantdinger_vue
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks:
+      - quantdinger-network
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
+      - "traefik.http.routers.quantdinger.rule=Host(`${QD_DOMAIN:?QD_DOMAIN is required}`)"
+      - "traefik.http.routers.quantdinger.entrypoints=websecure"
+      - "traefik.http.routers.quantdinger.tls.certResolver=letsencrypt"
+      - "traefik.http.services.quantdinger.loadbalancer.server.port=80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/health | grep -q OK"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_data:
+  backend_logs:
+  backend_data:
+
+networks:
+  quantdinger-network:
+    driver: bridge
+  dokploy-network:
+    external: true
+
