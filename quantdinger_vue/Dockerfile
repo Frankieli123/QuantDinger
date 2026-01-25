@@ -24,8 +24,13 @@ FROM nginx:alpine
 # Copy build artifacts
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy nginx configuration
-COPY deploy/nginx-docker.conf /etc/nginx/conf.d/default.conf
+# Copy nginx configuration as template (supports env var substitution)
+COPY deploy/nginx-docker.conf /etc/nginx/templates/default.conf.template
+
+# Default backend host (can be overridden via environment variable)
+ENV BACKEND_HOST=backend
+# Only substitute BACKEND_HOST variable (preserve nginx variables like $host, $remote_addr)
+ENV NGINX_ENVSUBST_FILTER=BACKEND_HOST
 
 # Expose port
 EXPOSE 80
