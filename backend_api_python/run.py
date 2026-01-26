@@ -19,6 +19,10 @@ except Exception:
 try:
     from dotenv import load_dotenv
     this_dir = os.path.dirname(os.path.abspath(__file__))
+    env_override = (os.getenv('QD_ENV_FILE_PATH') or '').strip()
+    if env_override:
+        load_dotenv(env_override, override=False)
+
     # Primary: backend_api_python/.env (same dir as run.py)
     load_dotenv(os.path.join(this_dir, ".env"), override=False)
     # Fallback: repo-root/.env (one level up) for users who place .env at workspace root.

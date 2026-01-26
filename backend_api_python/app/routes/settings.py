@@ -15,7 +15,14 @@ logger = get_logger(__name__)
 settings_bp = Blueprint('settings', __name__)
 
 # .env 文件路径
-ENV_FILE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.env')
+def _get_env_file_path() -> str:
+    override_path = (os.getenv('QD_ENV_FILE_PATH') or '').strip()
+    if override_path:
+        return override_path
+    return os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.env')
+
+
+ENV_FILE_PATH = _get_env_file_path()
 
 # 配置项定义（分组）- 按功能模块划分，每个配置项包含描述
 CONFIG_SCHEMA = {

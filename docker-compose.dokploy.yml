@@ -48,6 +48,7 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       FRONTEND_URL: ${FRONTEND_URL:-}
+      QD_ENV_FILE_PATH: /app/data/.env
     volumes:
       - backend_logs:/app/logs
       - backend_data:/app/data
