@@ -78,6 +78,7 @@ def load_addon_config() -> Dict[str, Any]:
         
         # Google Gemini
         ('GOOGLE_API_KEY', 'google.api_key', 'string'),
+        ('GOOGLE_BASE_URL', 'google.base_url', 'string'),
         ('GOOGLE_MODEL', 'google.model', 'string'),
         
         # DeepSeek

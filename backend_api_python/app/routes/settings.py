@@ -173,6 +173,14 @@ CONFIG_SCHEMA = {
                 'description': 'Model: gemini-1.5-flash, gemini-1.5-pro, gemini-2.0-flash-exp',
                 'group': 'google'
             },
+            {
+                'key': 'GOOGLE_BASE_URL',
+                'label': 'Gemini Base URL',
+                'type': 'text',
+                'default': 'https://generativelanguage.googleapis.com/v1beta',
+                'description': 'Custom Gemini API endpoint (for proxies or gateways)',
+                'group': 'google'
+            },
             # DeepSeek
             {
                 'key': 'DEEPSEEK_API_KEY',
