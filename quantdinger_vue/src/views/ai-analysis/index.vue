@@ -1166,8 +1166,9 @@ export default {
       try {
         const res = await getConfig()
         if (res && res.code === 1 && res.data && res.data.models) {
-          const mergedModels = mergeModelMaps(DEFAULT_AI_MODEL_MAP, res.data.models)
-          this.modelOptions = modelMapToOptions(mergedModels)
+          const hasOverride = res.data.models_override === true
+          const modelMap = hasOverride ? res.data.models : mergeModelMaps(DEFAULT_AI_MODEL_MAP, res.data.models)
+          this.modelOptions = modelMapToOptions(modelMap)
 
           // 如果当前选中的模型不在列表中，且列表不为空，则默认选中第一个
           if (this.modelOptions.length > 0 && !this.modelOptions.find(m => m.value === this.selectedModel)) {

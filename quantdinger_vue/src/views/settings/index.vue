@@ -123,7 +123,29 @@
                     </template>
                     <!-- 文本输入 -->
                     <template v-if="item.type === 'text'">
+                      <div v-if="item.key === 'AI_MODELS_JSON'">
+                        <a-textarea
+                          v-decorator="[item.key, { initialValue: getFieldValue(groupKey, item.key) }]"
+                          :auto-size="{ minRows: 3, maxRows: 10 }"
+                          :placeholder="item.default ? `${$t('settings.default')}: ${item.default}` : ''"
+                        />
+                        <a-button size="small" style="margin-top: 8px;" @click="openModelManager">
+                          {{ $t('settings.manageModels') || '管理模型' }}
+                        </a-button>
+                      </div>
+                      <div v-else-if="item.key && item.key.endsWith('_MODEL') && isAiProviderModelKey(item.key)" style="display:flex; gap: 8px;">
+                        <a-input
+                          v-decorator="[item.key, { initialValue: getFieldValue(groupKey, item.key) }]"
+                          :placeholder="item.default ? `${$t('settings.default')}: ${item.default}` : ''"
+                          allowClear
+                          style="flex: 1"
+                        />
+                        <a-button size="small" @click="openProviderModelManager(item.key)">
+                          {{ $t('settings.manageModel') || '管理' }}
+                        </a-button>
+                      </div>
                       <a-input
+                        v-else
                         v-decorator="[item.key, { initialValue: getFieldValue(groupKey, item.key) }]"
                         :placeholder="item.default ? `${$t('settings.default')}: ${item.default}` : ''"
                         allowClear
@@ -203,11 +225,75 @@
         {{ $t('settings.save') }}
       </a-button>
     </div>
+
+    <a-modal
+      :visible="modelManagerVisible"
+      :title="$t('settings.manageModels') || '管理模型'"
+      :confirmLoading="modelListLoading"
+      @ok="applyModelSelection"
+      @cancel="closeModelManager"
+      width="720px"
+    >
+      <div style="display:flex; gap: 8px; align-items:center; margin-bottom: 12px;">
+        <a-select
+          v-model="selectedProvider"
+          style="min-width: 220px;"
+          :loading="modelProvidersLoading"
+          :disabled="providerLocked"
+          :placeholder="$t('settings.selectProvider') || '选择供应商'"
+        >
+          <a-select-option v-for="p in modelProviders" :key="p.provider" :value="p.provider">
+            {{ p.provider }}
+          </a-select-option>
+        </a-select>
+        <a-button type="primary" :disabled="!selectedProvider" :loading="modelListLoading" @click="fetchModels">
+          {{ $t('settings.fetchModels') || '拉取模型' }}
+        </a-button>
+        <span style="color:#999; font-size: 12px;">
+          {{ $t('settings.fetchModelsHint') || '只显示已配置 Key 的供应商' }}
+        </span>
+      </div>
+
+      <div style="margin-bottom: 12px;" v-if="targetModelKey">
+        <div style="margin-bottom: 6px; font-size: 12px; color:#999;">
+          {{ $t('settings.defaultModel') || '默认模型（将写入当前供应商的 *_MODEL）' }}
+        </div>
+        <a-select
+          show-search
+          v-model="defaultModelId"
+          style="width: 100%"
+          :placeholder="$t('settings.selectDefaultModel') || '选择默认模型'"
+          :filter-option="filterModelOption"
+        >
+          <a-select-option v-for="(label, id) in allModelsMap" :key="id" :value="id">
+            {{ label }}
+          </a-select-option>
+        </a-select>
+      </div>
+
+      <a-select
+        mode="multiple"
+        show-search
+        v-model="selectedModelIds"
+        style="width: 100%"
+        :placeholder="$t('settings.selectModels') || '选择模型（可多选）'"
+        :filter-option="filterModelOption"
+        :maxTagCount="3"
+      >
+        <a-select-option v-for="(label, id) in allModelsMap" :key="id" :value="id">
+          {{ label }}
+        </a-select-option>
+      </a-select>
+
+      <div style="margin-top: 10px; color:#999; font-size: 12px;">
+        {{ $t('settings.modelsJsonWillUpdate') || '点击确定会写入 AI_MODELS_JSON（如需持久化请再点页面底部保存）。' }}
+      </div>
+    </a-modal>
   </div>
 </template>
 
 <script>
-import { getSettingsSchema, getSettingsValues, saveSettings, getOpenRouterBalance } from '@/api/settings'
+import { getSettingsSchema, getSettingsValues, saveSettings, getOpenRouterBalance, getAIModelProviders, getAIModels } from '@/api/settings'
 import { baseMixin } from '@/store/app-mixin'
 
 export default {
@@ -224,7 +310,18 @@ export default {
       showRestartTip: false,
       // OpenRouter 余额
       balanceLoading: false,
-      openrouterBalance: null
+      openrouterBalance: null,
+
+      modelManagerVisible: false,
+      modelProvidersLoading: false,
+      modelListLoading: false,
+      modelProviders: [],
+      selectedProvider: '',
+      providerLocked: false,
+      targetModelKey: '',
+      defaultModelId: '',
+      allModelsMap: {},
+      selectedModelIds: []
     }
   },
   computed: {
@@ -384,6 +481,198 @@ export default {
         return defaultVal === 'True' || defaultVal === 'true' || defaultVal === true
       }
       return val === 'True' || val === 'true' || val === true
+    },
+
+    filterModelOption (input, option) {
+      const needle = String(input || '').toLowerCase()
+      const value = (option && option.componentOptions && option.componentOptions.propsData && option.componentOptions.propsData.value) || ''
+      const labelNode = option && option.componentOptions && option.componentOptions.children && option.componentOptions.children[0]
+      const label = (labelNode && labelNode.text) || ''
+      return String(value).toLowerCase().includes(needle) || String(label).toLowerCase().includes(needle)
+    },
+
+    isAiProviderModelKey (key) {
+      return [
+        'OPENROUTER_MODEL',
+        'OPENAI_MODEL',
+        'GOOGLE_MODEL',
+        'DEEPSEEK_MODEL',
+        'GROK_MODEL'
+      ].includes(String(key || ''))
+    },
+
+    _providerForModelKey (key) {
+      const map = {
+        OPENROUTER_MODEL: 'openrouter',
+        OPENAI_MODEL: 'openai',
+        GOOGLE_MODEL: 'google',
+        DEEPSEEK_MODEL: 'deepseek',
+        GROK_MODEL: 'grok'
+      }
+      return map[String(key || '')] || ''
+    },
+
+    _fullIdFromEnvModel (provider, envModel) {
+      const v = String(envModel || '').trim()
+      if (!v) return ''
+      if (provider === 'openrouter') return v
+      if (provider === 'grok') return `x-ai/${v}`
+      return `${provider}/${v}`
+    },
+
+    _envModelFromFullId (provider, fullId) {
+      const v = String(fullId || '').trim()
+      if (!v) return ''
+      if (provider === 'openrouter') return v
+      const parts = v.split('/')
+      return parts.length > 1 ? parts.slice(1).join('/') : v
+    },
+
+    async openModelManager () {
+      this.modelManagerVisible = true
+      this.modelProviders = []
+      this.providerLocked = false
+      this.targetModelKey = ''
+      this.defaultModelId = ''
+      this.selectedProvider = this.selectedProvider || ''
+
+      // Load existing JSON selection into local state
+      const cur = this.form.getFieldValue('AI_MODELS_JSON') || ''
+      try {
+        const parsed = cur ? JSON.parse(cur) : {}
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          this.allModelsMap = { ...parsed }
+          this.selectedModelIds = Object.keys(parsed)
+        } else {
+          this.allModelsMap = {}
+          this.selectedModelIds = []
+        }
+      } catch (e) {
+        this.allModelsMap = {}
+        this.selectedModelIds = []
+      }
+
+      this.modelProvidersLoading = true
+      try {
+        const res = await getAIModelProviders()
+        if (res && res.code === 1 && Array.isArray(res.data)) {
+          this.modelProviders = res.data
+          if (!this.selectedProvider && this.modelProviders.length > 0) {
+            this.selectedProvider = this.modelProviders[0].provider
+          }
+        } else {
+          this.$message.error(res?.msg || 'Failed to load providers')
+        }
+      } catch (e) {
+        this.$message.error('Failed to load providers')
+      } finally {
+        this.modelProvidersLoading = false
+      }
+    },
+
+    async openProviderModelManager (modelKey) {
+      this.modelManagerVisible = true
+      this.modelProviders = []
+      this.providerLocked = true
+      this.targetModelKey = String(modelKey || '')
+      this.defaultModelId = ''
+      this.selectedModelIds = []
+
+      const provider = this._providerForModelKey(this.targetModelKey)
+      this.selectedProvider = provider
+
+      // preload default model selection from current form value
+      const currentEnvModel = this.form.getFieldValue(this.targetModelKey) || ''
+      const fullId = this._fullIdFromEnvModel(provider, currentEnvModel)
+      if (fullId) {
+        this.defaultModelId = fullId
+      }
+
+      // Load providers and verify this provider is configured.
+      this.modelProvidersLoading = true
+      try {
+        const res = await getAIModelProviders()
+        if (res && res.code === 1 && Array.isArray(res.data)) {
+          this.modelProviders = res.data
+          const ok = this.modelProviders.find(p => p.provider === provider)
+          if (!ok) {
+            this.$message.warning(`${provider} 未配置 API Key，无法拉取模型`)
+          }
+        } else {
+          this.$message.error(res?.msg || 'Failed to load providers')
+        }
+      } catch (e) {
+        this.$message.error('Failed to load providers')
+      } finally {
+        this.modelProvidersLoading = false
+      }
+    },
+
+    closeModelManager () {
+      this.modelManagerVisible = false
+      this.modelListLoading = false
+      this.providerLocked = false
+      this.targetModelKey = ''
+      this.defaultModelId = ''
+    },
+
+    async fetchModels () {
+      if (!this.selectedProvider) return
+      this.modelListLoading = true
+      try {
+        const res = await getAIModels(this.selectedProvider)
+        const models = res && res.code === 1 && res.data && res.data.models ? res.data.models : null
+        if (!models) {
+          this.$message.error(res?.msg || 'Fetch models failed')
+          return
+        }
+        this.allModelsMap = Object.assign({}, this.allModelsMap, models)
+      } catch (e) {
+        this.$message.error('Fetch models failed')
+      } finally {
+        this.modelListLoading = false
+      }
+    },
+
+    async applyModelSelection () {
+      const selectedIds = new Set(this.selectedModelIds || [])
+      if (this.defaultModelId) {
+        selectedIds.add(this.defaultModelId)
+      }
+
+      const obj = {}
+      for (const id of selectedIds) {
+        obj[id] = this.allModelsMap[id] || id
+      }
+      this.form.setFieldsValue({ AI_MODELS_JSON: JSON.stringify(obj, null, 2) })
+
+      const aiPayload = { AI_MODELS_JSON: JSON.stringify(obj) }
+
+      if (this.targetModelKey && this.selectedProvider && this.defaultModelId) {
+        const envModel = this._envModelFromFullId(this.selectedProvider, this.defaultModelId)
+        if (envModel) {
+          this.form.setFieldsValue({ [this.targetModelKey]: envModel })
+          aiPayload[this.targetModelKey] = envModel
+        }
+      }
+
+      // Save only AI group immediately (avoid requiring the user to scroll to bottom).
+      try {
+        const res = await saveSettings({ ai: aiPayload })
+        if (res && res.code === 1) {
+          this.$message.success(res.msg || this.$t('settings.saveSuccess'))
+          if (res.data && res.data.requires_restart) {
+            this.showRestartTip = true
+          }
+          this.loadSettings()
+        } else {
+          this.$message.error(res?.msg || this.$t('settings.saveFailed'))
+        }
+      } catch (e) {
+        this.$message.error(this.$t('settings.saveFailed'))
+      }
+
+      this.closeModelManager()
     },
 
     handleReset () {

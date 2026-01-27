@@ -54,3 +54,18 @@ export function getOpenRouterBalance () {
     method: 'get'
   })
 }
+
+export function getAIModelProviders () {
+  return request({
+    url: '/api/settings/ai-models/providers',
+    method: 'get'
+  })
+}
+
+export function getAIModels (provider) {
+  return request({
+    url: '/api/settings/ai-models/list',
+    method: 'get',
+    params: { provider }
+  })
+}

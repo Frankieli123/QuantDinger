@@ -49,9 +49,17 @@ def get_public_config():
     try:
         cfg = load_addon_config()
         models = (cfg.get('ai', {}) or {}).get('models')
-        if not isinstance(models, dict) or not models:
-            # Fallback defaults (offline friendly)
-            models = {
+        if isinstance(models, dict) and models:
+            # When user provides AI_MODELS_JSON, treat it as an explicit allowlist.
+            # Frontend can honor this flag to avoid merging with built-in defaults.
+            return jsonify({
+                'code': 1,
+                'msg': 'success',
+                'data': {'models': models, 'models_override': True, 'qdt_cost': {}}
+            })
+
+        # Fallback defaults (offline friendly)
+        models = {
                 # Keep some legacy defaults
                 'openai/gpt-4o': 'GPT-4o',
 
@@ -74,8 +82,9 @@ def get_public_config():
                 'anthropic/claude-opus-4.5': 'Anthropic: Claude Opus 4.5',
                 'anthropic/claude-haiku-4.5': 'Anthropic: Claude Haiku 4.5',
                 'z-ai/glm-4.6': 'Z.AI: GLM 4.6',
-            }
-        return jsonify({'code': 1, 'msg': 'success', 'data': {'models': models, 'qdt_cost': {}}})
+        }
+
+        return jsonify({'code': 1, 'msg': 'success', 'data': {'models': models, 'models_override': False, 'qdt_cost': {}}})
     except Exception as e:
         logger.error(f"get_public_config failed: {str(e)}")
         return jsonify({'code': 0, 'msg': str(e), 'data': None}), 500

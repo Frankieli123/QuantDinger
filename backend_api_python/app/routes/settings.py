@@ -9,6 +9,7 @@ from flask import Blueprint, request, jsonify
 from app.utils.logger import get_logger
 from app.utils.config_loader import clear_config_cache
 from app.utils.auth import login_required, admin_required
+from app.config.api_keys import APIKeys
 
 logger = get_logger(__name__)
 
@@ -1160,13 +1161,39 @@ def save_settings():
         if write_env_file(current_env):
             # 清除配置缓存
             clear_config_cache()
-            
+
+            # Apply changes immediately to current process env (no restart required for most settings).
+            # Without this, changes written to .env won't be visible until process restart because
+            # run.py only loads .env at startup (override=False).
+            for k, v in updates.items():
+                if v is None or str(v) == '':
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = str(v)
+
+            # Reset email service singleton so SMTP config takes effect immediately.
+            try:
+                from app.services import email_service as _email_service_mod
+                if hasattr(_email_service_mod, "_email_service"):
+                    _email_service_mod._email_service = None
+            except Exception:
+                pass
+
+            restart_required_keys = {
+                'PYTHON_API_HOST',
+                'PYTHON_API_PORT',
+                'PYTHON_API_DEBUG',
+                'SECRET_KEY',
+                'DATABASE_URL',
+            }
+            requires_restart = any(k in restart_required_keys for k in updates.keys())
+
             return jsonify({
                 'code': 1,
                 'msg': 'Settings saved successfully',
                 'data': {
                     'updated_keys': list(updates.keys()),
-                    'requires_restart': True  # 标记需要重启
+                    'requires_restart': bool(requires_restart)
                 }
             })
         else:
@@ -1175,6 +1202,144 @@ def save_settings():
     except Exception as e:
         logger.error(f"Failed to save settings: {e}")
         return jsonify({'code': 0, 'msg': f'Save failed: {str(e)}'})
+
+
+@settings_bp.route('/ai-models/providers', methods=['GET'])
+@login_required
+@admin_required
+def get_ai_models_providers():
+    """
+    List AI providers that are currently configured (API key present).
+    """
+    providers = []
+
+    def _add(name: str, env_key: str, api_key: str):
+        if (api_key or '').strip():
+            providers.append({'provider': name, 'env_key': env_key})
+
+    _add('openrouter', 'OPENROUTER_API_KEY', APIKeys.OPENROUTER_API_KEY)
+    _add('openai', 'OPENAI_API_KEY', APIKeys.OPENAI_API_KEY)
+    _add('google', 'GOOGLE_API_KEY', APIKeys.GOOGLE_API_KEY)
+    _add('deepseek', 'DEEPSEEK_API_KEY', APIKeys.DEEPSEEK_API_KEY)
+    _add('grok', 'GROK_API_KEY', APIKeys.GROK_API_KEY)
+
+    return jsonify({'code': 1, 'msg': 'success', 'data': providers})
+
+
+def _fetch_models_openai_compatible(provider: str, api_key: str, base_url: str, output_prefix: str = None) -> dict:
+    import requests
+
+    url = f"{base_url.rstrip('/')}/models"
+    resp = requests.get(
+        url,
+        headers={"Authorization": f"Bearer {api_key}"},
+        timeout=20,
+    )
+    resp.raise_for_status()
+    data = resp.json() or {}
+    items = data.get('data') or []
+    out = {}
+    prefix = (output_prefix or provider).strip() or provider
+    label_prefix = {
+        'openai': 'OpenAI',
+        'deepseek': 'DeepSeek',
+        'x-ai': 'xAI',
+        'grok': 'xAI',
+    }.get(prefix.lower(), prefix.capitalize())
+    for it in items:
+        mid = (it.get('id') or '').strip()
+        if not mid:
+            continue
+        out[f"{prefix}/{mid}"] = f"{label_prefix}: {mid}"
+    return out
+
+
+@settings_bp.route('/ai-models/list', methods=['GET'])
+@login_required
+@admin_required
+def list_ai_models():
+    """
+    Fetch available models from a specific provider.
+
+    Query params:
+        provider: openrouter | openai | google | deepseek | grok
+    """
+    provider = (request.args.get('provider') or '').strip().lower()
+
+    try:
+        import requests
+        from app.services.llm import LLMService, LLMProvider
+
+        if provider == 'openrouter':
+            api_key = APIKeys.OPENROUTER_API_KEY
+            if not api_key:
+                return jsonify({'code': 0, 'msg': 'OPENROUTER_API_KEY not configured', 'data': None}), 400
+
+            base_url = (os.getenv('OPENROUTER_API_URL') or '').strip() or 'https://openrouter.ai/api/v1'
+            url = f"{base_url.rstrip('/')}/models"
+            resp = requests.get(url, headers={"Authorization": f"Bearer {api_key}"}, timeout=20)
+            resp.raise_for_status()
+            payload = resp.json() or {}
+            items = payload.get('data') or []
+
+            models = {}
+            for it in items:
+                mid = (it.get('id') or '').strip()
+                if not mid:
+                    continue
+                models[mid] = it.get('name') or mid
+            return jsonify({'code': 1, 'msg': 'success', 'data': {'provider': provider, 'models': models}})
+
+        if provider == 'google':
+            api_key = APIKeys.GOOGLE_API_KEY
+            if not api_key:
+                return jsonify({'code': 0, 'msg': 'GOOGLE_API_KEY not configured', 'data': None}), 400
+
+            base_url = (os.getenv('GOOGLE_BASE_URL') or '').strip() or 'https://generativelanguage.googleapis.com/v1beta'
+            url = f"{base_url.rstrip('/')}/models?key={api_key}"
+            resp = requests.get(url, timeout=20)
+            resp.raise_for_status()
+            payload = resp.json() or {}
+            items = payload.get('models') or []
+            models = {}
+            for it in items:
+                name = (it.get('name') or '').strip()  # e.g. models/gemini-1.5-flash
+                if not name:
+                    continue
+                short = name.split('/')[-1]
+                mid = f"google/{short}"
+                display = (it.get('displayName') or '').strip() or short
+                models[mid] = f"Google: {display}"
+            return jsonify({'code': 1, 'msg': 'success', 'data': {'provider': provider, 'models': models}})
+
+        if provider in ('openai', 'deepseek', 'grok'):
+            svc = LLMService()
+            provider_map = {
+                'openai': LLMProvider.OPENAI,
+                'deepseek': LLMProvider.DEEPSEEK,
+                'grok': LLMProvider.GROK,
+            }
+            p = provider_map[provider]
+            api_key = svc.get_api_key(p)
+            if not api_key:
+                return jsonify({'code': 0, 'msg': f'{provider.upper()}_API_KEY not configured', 'data': None}), 400
+
+            base_url = svc.get_base_url(p)
+            output_prefix = 'x-ai' if provider == 'grok' else provider
+            models = _fetch_models_openai_compatible(provider, api_key, base_url, output_prefix=output_prefix)
+            return jsonify({'code': 1, 'msg': 'success', 'data': {'provider': provider, 'models': models}})
+
+        return jsonify({'code': 0, 'msg': 'Unsupported provider', 'data': None}), 400
+
+    except requests.exceptions.HTTPError as e:
+        try:
+            detail = e.response.text[:500] if e.response is not None else str(e)
+        except Exception:
+            detail = str(e)
+        return jsonify({'code': 0, 'msg': f'Fetch models failed: {detail}', 'data': None}), 502
+    except Exception as e:
+        logger.error(f"list_ai_models failed: {e}")
+        return jsonify({'code': 0, 'msg': f'Fetch models failed: {str(e)}', 'data': None}), 500
 
 
 @settings_bp.route('/openrouter-balance', methods=['GET'])
