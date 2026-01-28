@@ -264,6 +264,7 @@ export default {
       openrouterBalance: null,
 
       providerModelSelections: {},
+      modelsJsonCache: {},
       providerModelsByProvider: {},
       providerLoadingByProvider: {}
     }
@@ -327,7 +328,6 @@ export default {
 
         this.$nextTick(() => {
           this.syncModelSelectionsFromValues()
-          this.syncModelsJsonFromSelections()
         })
       } catch (error) {
         this.$message.error(this.$t('settings.loadFailed'))
@@ -412,6 +412,11 @@ export default {
       return groupValues[key] || ''
     },
 
+    isPasswordConfigured (groupKey, key) {
+      const groupValues = this.values[groupKey] || {}
+      return !!groupValues[`${key}_configured`]
+    },
+
     tOr (key, fallback) {
       const translated = this.$t(key)
       return translated !== key ? translated : fallback
@@ -454,9 +459,37 @@ export default {
       return parts.length > 1 ? parts.slice(1).join('/') : v
     },
 
+    safeParseModelsJson (raw) {
+      const s = String(raw || '').trim()
+      if (!s) return {}
+      try {
+        const obj = JSON.parse(s)
+        return obj && typeof obj === 'object' && !Array.isArray(obj) ? obj : {}
+      } catch (e) {
+        return {}
+      }
+    },
+
+    isModelsJsonIdForProvider (provider, id) {
+      const v = String(id || '').trim()
+      if (!v) return false
+      if (provider === 'grok') return v.startsWith('x-ai/')
+      if (provider === 'openrouter') return v.includes('/')
+      return v.startsWith(`${provider}/`)
+    },
+
     getProviderModelsMap (modelKey) {
       const provider = this.providerForModelKey(modelKey)
-      return this.providerModelsByProvider[provider] || {}
+      const base = this.providerModelsByProvider[provider] || {}
+      const cached = this.modelsJsonCache || {}
+      if (!cached || typeof cached !== 'object') return base
+
+      const merged = { ...base }
+      for (const id of Object.keys(cached)) {
+        if (!this.isModelsJsonIdForProvider(provider, id)) continue
+        merged[id] = merged[id] || String(cached[id] || id)
+      }
+      return merged
     },
 
     isProviderLoading (modelKey) {
@@ -466,11 +499,49 @@ export default {
 
     syncModelSelectionsFromValues () {
       const aiVals = this.values.ai || {}
-      const keys = ['OPENROUTER_MODEL', 'OPENAI_MODEL', 'GOOGLE_MODEL', 'DEEPSEEK_MODEL', 'GROK_MODEL']
-      for (const k of keys) {
-        const provider = this.providerForModelKey(k)
-        const fullId = this.fullIdFromEnvModel(provider, aiVals[k] || '')
-        this.$set(this.providerModelSelections, k, fullId ? [fullId] : [])
+      const parsed = this.safeParseModelsJson(aiVals.AI_MODELS_JSON)
+      this.modelsJsonCache = parsed
+
+      const modelKeys = ['OPENROUTER_MODEL', 'OPENAI_MODEL', 'GOOGLE_MODEL', 'DEEPSEEK_MODEL', 'GROK_MODEL']
+      const selectionsByKey = {}
+
+      const jsonIds = Object.keys(parsed || {}).filter(k => typeof k === 'string' && k.includes('/'))
+
+      // Primary: drive selections from AI_MODELS_JSON when present.
+      if (jsonIds.length > 0) {
+        for (const modelKey of modelKeys) {
+          const provider = this.providerForModelKey(modelKey)
+          const apiKeyKey = provider ? `${provider.toUpperCase()}_API_KEY` : ''
+          const configured = provider === 'openrouter'
+            ? this.isPasswordConfigured('ai', 'OPENROUTER_API_KEY') || !!aiVals.OPENROUTER_API_KEY
+            : (apiKeyKey ? (this.isPasswordConfigured('ai', apiKeyKey) || !!aiVals[apiKeyKey]) : false)
+
+          if (!configured) {
+            selectionsByKey[modelKey] = []
+            continue
+          }
+
+          const ids = provider === 'openrouter'
+            ? jsonIds.slice()
+            : jsonIds.filter(id => this.isModelsJsonIdForProvider(provider, id))
+
+          const envFullId = this.fullIdFromEnvModel(provider, aiVals[modelKey] || '')
+          if (envFullId && ids.includes(envFullId)) {
+            ids.splice(ids.indexOf(envFullId), 1)
+            ids.unshift(envFullId)
+          }
+
+          selectionsByKey[modelKey] = ids
+        }
+      } else {
+        // No custom list: keep selections empty (avoid auto-filling defaults).
+        for (const modelKey of modelKeys) {
+          selectionsByKey[modelKey] = []
+        }
+      }
+
+      for (const modelKey of modelKeys) {
+        this.$set(this.providerModelSelections, modelKey, selectionsByKey[modelKey] || [])
       }
     },
 
@@ -513,9 +584,11 @@ export default {
         const provider = this.providerForModelKey(modelKey)
         const map = this.providerModelsByProvider[provider] || {}
         for (const id of ids) {
-          obj[id] = map[id] || obj[id] || id
+          const cachedLabel = this.modelsJsonCache && this.modelsJsonCache[id]
+          obj[id] = map[id] || cachedLabel || obj[id] || id
         }
       }
+      this.modelsJsonCache = obj
       this.form.setFieldsValue({ AI_MODELS_JSON: JSON.stringify(obj, null, 2) })
     },
 

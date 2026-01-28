@@ -5,6 +5,7 @@ Admin-only endpoints for system configuration management.
 """
 import os
 import re
+import json
 from flask import Blueprint, request, jsonify
 from app.utils.logger import get_logger
 from app.utils.config_loader import clear_config_cache
@@ -1028,6 +1029,28 @@ def read_env_file():
 
 def write_env_file(env_values):
     """写入 .env 文件，保留注释和格式"""
+    def _format_env_line(key: str, value) -> str:
+        v = '' if value is None else str(value)
+        v = v.replace('\r\n', '\n').replace('\r', '\n')
+
+        # Keep .env parseable: values should be single-line.
+        if '\n' in v:
+            v = v.replace('\n', '\\n')
+
+        if v == '':
+            return f'{key}=\n'
+
+        # Quote only when necessary; prefer single quotes to safely carry JSON/double quotes.
+        needs_quote = any(ch in v for ch in [' ', '\t', '"', "'", '#'])
+        if not needs_quote:
+            return f'{key}={v}\n'
+
+        if "'" not in v:
+            return f"{key}='{v}'\n"
+
+        escaped = v.replace('\\', '\\\\').replace('"', '\\"')
+        return f'{key}="{escaped}"\n'
+
     lines = []
     existing_keys = set()
     
@@ -1050,15 +1073,13 @@ def write_env_file(env_values):
                         if key in env_values:
                             existing_keys.add(key)
                             value = env_values[key]
-                            # 如果值包含特殊字符，用引号包裹
-                            if ' ' in str(value) or '"' in str(value) or "'" in str(value):
-                                lines.append(f'{key}="{value}"\n')
-                            else:
-                                lines.append(f'{key}={value}\n')
+                            lines.append(_format_env_line(key, value))
                         else:
                             lines.append(original_line)
                     else:
-                        lines.append(original_line)
+                        # Keep the file parseable for dotenv loaders:
+                        # comment out any non-empty, non-comment, non KEY=VALUE lines.
+                        lines.append(f'# {original_line}')
         except Exception as e:
             logger.error(f"Failed to read .env file for update: {e}")
     
@@ -1070,10 +1091,7 @@ def write_env_file(env_values):
         lines.append('\n# Added by Settings UI\n')
         for key in sorted(new_keys):
             value = env_values[key]
-            if ' ' in str(value) or '"' in str(value) or "'" in str(value):
-                lines.append(f'{key}="{value}"\n')
-            else:
-                lines.append(f'{key}={value}\n')
+            lines.append(_format_env_line(key, value))
     
     # 写入文件
     try:
@@ -1110,7 +1128,7 @@ def get_settings_values():
         result[group_key] = {}
         for item in group['items']:
             key = item['key']
-            value = env_values.get(key, item.get('default', ''))
+            value = env_values.get(key, '')
             result[group_key][key] = value
             # 标记密码类型是否已配置
             if item['type'] == 'password':
@@ -1153,6 +1171,18 @@ def save_settings():
                             updates[key] = ''
                     else:
                         updates[key] = str(new_value)
+
+        # Normalize/validate JSON settings so the .env stays parseable and the app can load them.
+        if 'AI_MODELS_JSON' in updates:
+            raw = str(updates.get('AI_MODELS_JSON') or '').strip()
+            if raw:
+                try:
+                    parsed = json.loads(raw)
+                except Exception:
+                    return jsonify({'code': 0, 'msg': 'AI_MODELS_JSON must be valid JSON object (e.g. {"x-ai/grok-4.1-thinking":"xAI: Grok 4.1 Thinking"})'})
+                if not isinstance(parsed, dict):
+                    return jsonify({'code': 0, 'msg': 'AI_MODELS_JSON must be a JSON object (mapping of model_id -> display_name)'})
+                updates['AI_MODELS_JSON'] = json.dumps(parsed, ensure_ascii=False, separators=(',', ':'), sort_keys=True)
         
         # 合并更新
         current_env.update(updates)
