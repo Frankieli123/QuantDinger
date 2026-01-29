@@ -8,6 +8,7 @@ is controlled by the `language` value passed through the analysis context.
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
 import os
+import re
 import time
 import pandas as pd
 import yfinance as yf
@@ -188,7 +189,20 @@ class AgentTools:
 
                 # yfinance fallback (daily)
                 if market == 'AShare':
-                    yf_symbol = f"{symbol}.SS" if symbol.startswith('6') else f"{symbol}.SZ"
+                    s = str(symbol or "").strip()
+                    m = re.search(r"(\d{6})", s)
+                    code = m.group(1) if m else s
+                    if code.isdigit() and len(code) == 6:
+                        if code.startswith(("43", "83", "87", "88")):
+                            yf_symbol = f"{code}.BJ"
+                        elif code.startswith(("60", "68", "90", "50", "51", "52", "53", "54", "55", "56", "58", "11", "12")):
+                            yf_symbol = f"{code}.SS"
+                        elif code.startswith(("00", "30", "15", "16", "18")):
+                            yf_symbol = f"{code}.SZ"
+                        else:
+                            yf_symbol = f"{code}.SS" if code.startswith("6") else f"{code}.SZ"
+                    else:
+                        yf_symbol = f"{s}.SS" if s.startswith('6') else f"{s}.SZ"
                 else:
                     yf_symbol = f"{symbol.zfill(4)}.HK"
 

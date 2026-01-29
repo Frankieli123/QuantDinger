@@ -60,13 +60,22 @@ def _tencent_quote_code(market: str, symbol: str) -> Optional[str]:
         return None
 
     if m == 'AShare':
-        if s.startswith('6'):
-            return f"sh{s}"
-        if s.startswith('0') or s.startswith('3'):
-            return f"sz{s}"
-        if s.startswith('4') or s.startswith('8'):
-            return f"bj{s}"
-        return None
+        # A-share codes are usually 6 digits. Accept sh/sz/bj prefixes too.
+        m6 = re.search(r"(\d{6})", str(symbol or ""))
+        code = (m6.group(1) if m6 else s)
+        if not (code.isdigit() and len(code) == 6):
+            return None
+
+        # Infer exchange (best-effort)
+        if code.startswith(("43", "83", "87", "88")):
+            return f"bj{code}"
+        if code.startswith(("60", "68", "90", "50", "51", "52", "53", "54", "55", "56", "58", "11", "12")):
+            return f"sh{code}"
+        if code.startswith(("00", "30", "15", "16", "18")):
+            return f"sz{code}"
+
+        # Fallback
+        return f"sh{code}" if code.startswith("6") else f"sz{code}"
 
     if m == 'HShare':
         if s.isdigit():

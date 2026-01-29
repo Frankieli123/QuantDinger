@@ -36,6 +36,30 @@ def _now_ts() -> int:
 def _normalize_symbol(symbol: str) -> str:
     return (symbol or '').strip().upper()
 
+def _normalize_cn_symbol_6(symbol: str) -> str:
+    import re
+    s = (symbol or '').strip()
+    if not s:
+        return ''
+    m = re.search(r'(\d{6})', s)
+    if m:
+        return m.group(1)
+    if s.isdigit() and len(s) < 6:
+        return s.zfill(6)
+    return s
+
+def _infer_ashare_yfinance_symbol(symbol: str) -> str:
+    s = _normalize_cn_symbol_6(symbol)
+    if not (s.isdigit() and len(s) == 6):
+        return symbol
+    if s.startswith(("43", "83", "87", "88")):
+        return f"{s}.BJ"
+    if s.startswith(("60", "68", "90", "50", "51", "52", "53", "54", "55", "56", "58", "11", "12")):
+        return f"{s}.SS"
+    if s.startswith(("00", "30", "15", "16", "18")):
+        return f"{s}.SZ"
+    return f"{s}.SS" if s.startswith('6') else f"{s}.SZ"
+
 def _ensure_watchlist_table():
     # Table is created by db schema init; this is only a sanity hook.
     return True
@@ -496,7 +520,7 @@ def get_stock_name():
                 if market == 'USStock':
                     yf_symbol = symbol
                 elif market == 'AShare':
-                    yf_symbol = symbol + '.SS' if symbol.startswith('6') else symbol + '.SZ'
+                    yf_symbol = _infer_ashare_yfinance_symbol(symbol)
                 elif market == 'HShare':
                     # 港股需要补齐4位数字并添加.HK
                     hk_code = symbol.zfill(4)

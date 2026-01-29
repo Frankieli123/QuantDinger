@@ -4,6 +4,7 @@ Supports A-Share and H-Share with multiple public sources.
 Priority (AShare): Eastmoney (intraday/daily) > yfinance (daily) > akshare (daily, optional).
 Priority (HShare): Tencent (intraday) > Eastmoney/Tencent (daily) > yfinance (daily) > akshare (daily, optional).
 """
+import re
 import json
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
@@ -27,6 +28,57 @@ except ImportError:
     HAS_AKSHARE = False
     # Keep it quiet to avoid noisy startup logs on Windows.
     logger.debug("akshare is not installed; akshare-based features are disabled")
+
+_CN_SYMBOL_6_RE = re.compile(r"(\d{6})")
+
+
+def _normalize_cn_symbol_6(symbol: str) -> str:
+    """
+    Normalize CN/HK symbol input to a 6-digit code when possible.
+    Accepts forms like:
+    - 600000
+    - sh600000 / sz000001 / bj430047
+    - 600000.SS / 000001.SZ / 430047.BJ / 600000.SH / 000001.SZ
+    """
+    s = str(symbol or "").strip()
+    if not s:
+        return ""
+    m = _CN_SYMBOL_6_RE.search(s)
+    if m:
+        return m.group(1)
+    if s.isdigit() and len(s) < 6:
+        return s.zfill(6)
+    return s
+
+
+def _infer_ashare_exchange(symbol6: str) -> str:
+    """
+    Infer exchange for A-share 6-digit codes.
+    Returns: 'SSE' / 'SZSE' / 'BJSE' (best-effort).
+    """
+    s = _normalize_cn_symbol_6(symbol6)
+    if not s or not s.isdigit() or len(s) != 6:
+        return ""
+
+    # Beijing Stock Exchange
+    if s.startswith(("43", "83", "87", "88")):
+        return "BJSE"
+
+    # Shanghai Stock Exchange:
+    # - A shares: 60/68
+    # - ETFs/funds: many start with 50/51/52/53/54/55/56/58
+    # - bonds/convertibles: often 11/12
+    if s.startswith(("60", "68", "90", "50", "51", "52", "53", "54", "55", "56", "58", "11", "12")):
+        return "SSE"
+
+    # Shenzhen Stock Exchange:
+    # - A shares: 00/30
+    # - ETFs/funds: 15/16/18
+    if s.startswith(("00", "30", "15", "16", "18")):
+        return "SZSE"
+
+    # Fallback (historical behavior)
+    return "SSE" if s.startswith("6") else "SZSE"
 
 
 class TencentDataMixin:
@@ -199,6 +251,7 @@ class AShareDataSource(BaseDataSource, TencentDataMixin):
         before_time: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """Fetch A-Share Kline data."""
+        symbol = _normalize_cn_symbol_6(symbol)
         klines = []
         
         # Prefer Eastmoney (supports most intraday timeframes)
@@ -229,22 +282,26 @@ class AShareDataSource(BaseDataSource, TencentDataMixin):
     
     def _to_tencent_symbol(self, symbol: str) -> Optional[str]:
         """转换为腾讯财经格式"""
-        if symbol.startswith('6'):
-            return f"sh{symbol}"
-        elif symbol.startswith('0') or symbol.startswith('3'):
-            return f"sz{symbol}"
-        elif symbol.startswith('4') or symbol.startswith('8'):
-            return f"bj{symbol}"  # 北交所
+        s = _normalize_cn_symbol_6(symbol)
+        ex = _infer_ashare_exchange(s)
+        if ex == "SSE":
+            return f"sh{s}"
+        if ex == "SZSE":
+            return f"sz{s}"
+        if ex == "BJSE":
+            return f"bj{s}"
         return None
     
     def _to_yahoo_symbol(self, symbol: str) -> Optional[str]:
         """转换为 Yahoo Finance 格式"""
-        if symbol.startswith('6'):
-            return f"{symbol}.SS"
-        elif symbol.startswith('0') or symbol.startswith('3'):
-            return f"{symbol}.SZ"
-        elif symbol.startswith('4') or symbol.startswith('8'):
-            return f"{symbol}.BJ"
+        s = _normalize_cn_symbol_6(symbol)
+        ex = _infer_ashare_exchange(s)
+        if ex == "SSE":
+            return f"{s}.SS"
+        if ex == "SZSE":
+            return f"{s}.SZ"
+        if ex == "BJSE":
+            return f"{s}.BJ"
         return None
     
     def _fetch_eastmoney_ashare(
@@ -254,6 +311,7 @@ class AShareDataSource(BaseDataSource, TencentDataMixin):
         limit: int
     ) -> List[Dict[str, Any]]:
         """使用东方财富获取A股数据"""
+        symbol = _normalize_cn_symbol_6(symbol)
         klines = []
         
         period = self.EM_PERIOD_MAP.get(timeframe)
@@ -262,11 +320,9 @@ class AShareDataSource(BaseDataSource, TencentDataMixin):
             return []
         
         try:
-            # 确定市场代码: 上海=1, 深圳=0, 北交所=0
-            if symbol.startswith('6'):
-                secid = f"1.{symbol}"
-            else:
-                secid = f"0.{symbol}"
+            # 确定市场代码: 上海=1, 深圳/北交所=0
+            ex = _infer_ashare_exchange(symbol)
+            secid = f"1.{symbol}" if ex == "SSE" else f"0.{symbol}"
             
             # 东方财富K线接口
             url = f"https://push2his.eastmoney.com/api/qt/stock/kline/get"
@@ -404,19 +460,13 @@ class AShareDataSource(BaseDataSource, TencentDataMixin):
                 'previousClose': 昨收价
             }
         """
-        symbol = (symbol or '').strip()
+        symbol = _normalize_cn_symbol_6(symbol)
         
         # 优先使用东方财富实时行情 API
         try:
-            # 判断市场
-            if symbol.startswith('6'):
-                secid = f"1.{symbol}"  # 上海
-            elif symbol.startswith('0') or symbol.startswith('3'):
-                secid = f"0.{symbol}"  # 深圳
-            elif symbol.startswith('4') or symbol.startswith('8'):
-                secid = f"0.{symbol}"  # 北交所
-            else:
-                secid = f"1.{symbol}"
+            # 判断市场（上海=1，深圳/北交所=0）
+            ex = _infer_ashare_exchange(symbol)
+            secid = f"1.{symbol}" if ex == "SSE" else f"0.{symbol}"
             
             # 东方财富实时行情接口
             url = "https://push2.eastmoney.com/api/qt/stock/get"
